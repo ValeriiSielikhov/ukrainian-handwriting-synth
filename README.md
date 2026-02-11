@@ -1,5 +1,14 @@
 # Synthetic Handwriting Dataset Generator
 
+<div align="center">
+
+[![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)](https://github.com/)
+[![Python](https://img.shields.io/badge/python-3.14+-blue?style=flat-square)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![Code style](https://img.shields.io/badge/code%20style-Ruff-blue?style=flat-square&logo=ruff)](https://docs.astral.sh/ruff/)
+
+</div>
+
 A tool for generating synthetic handwritten text images from digital fonts — designed for training OCR and HTR models.
 
 <img src="images/example_1.png" alt="Example output" style="width: 100%; max-width: 100%;">
