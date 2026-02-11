@@ -27,29 +27,24 @@ def render_line(
 
     font = ImageFont.truetype(str(font_path), font_size)
 
-    # Create oversized canvas so text always fits
-    canvas_h = font_size * 10
-    canvas_w = font_size * len(text) * 10
-    canvas_h = max(canvas_h, 100)
-    canvas_w = max(canvas_w, 100)
+    x, y = 0, 0
+    x_min, y_min, x_max, y_max = ImageDraw.Draw(Image.new("RGB", (1, 1))).textbbox(
+        (x, y), text, font=font
+    )
+    text_w = x_max - x_min
+    text_h = y_max - y_min
 
+    canvas_w = text_w + margin[0] * 2
+    canvas_h = text_h + margin[1] * 2
+    canvas_w = max(canvas_w, 10)
+    canvas_h = max(canvas_h, 10)
     img_arr = np.full((canvas_h, canvas_w, 3), fill_value=page_color, dtype=np.uint8)
     img = Image.fromarray(img_arr)
     draw = ImageDraw.Draw(img)
-
-    # Draw text roughly in the center-left area so bbox never clips at origin
-    x, y = font_size, font_size
-    x_min, y_min, x_max, y_max = draw.textbbox((x, y), text, font=font)
-    draw.text((x, y), text, fill=text_color, font=font)
-
-    # Crop to tight bounding box + margin
-    crop_x0 = max(x_min - margin[0], 0)
-    crop_y0 = max(y_min - margin[1], 0)
-    crop_x1 = min(x_max + margin[0], canvas_w)
-    crop_y1 = min(y_max + margin[1], canvas_h)
-
-    cropped = np.array(img.crop((crop_x0, crop_y0, crop_x1, crop_y1)))
-    return cropped
+    draw.text(
+        (-x_min + margin[0], -y_min + margin[1]), text, fill=text_color, font=font
+    )
+    return np.array(img)
 
 
 def apply_skew(img: np.ndarray, angle: float) -> np.ndarray:
