@@ -59,9 +59,7 @@ def discover_fonts(fonts_dir: str | Path) -> list[Path]:
     return sorted(p for p in fonts_dir.iterdir() if p.suffix.lower() in FONT_EXTENSIONS)
 
 
-def validate_font(
-    font_path: str | Path, required_chars: str = UKR_REQUIRED_CHARS
-) -> bool:
+def validate_font(font_path: str | Path, required_chars: str = UKR_REQUIRED_CHARS) -> bool:
     """Check whether a font file supports all required Ukrainian characters.
 
     Uses fontTools to read the font cmap directly. This avoids PIL's fallback

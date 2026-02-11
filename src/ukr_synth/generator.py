@@ -75,7 +75,10 @@ def _generate_single(
         img = render_line(text, font_path, font_size, config=config)
         img = apply_skew(img, skew_angle)
 
-        if _worker_backgrounds_dir is not None and random.random() < _worker_background_texture_prob:
+        if (
+            _worker_backgrounds_dir is not None
+            and random.random() < _worker_background_texture_prob
+        ):
             textures = load_background_textures(_worker_backgrounds_dir)
             if textures:
                 img = apply_background_texture(img, textures, page_color)
@@ -103,14 +106,11 @@ def _generate_single(
 
 def _jitter_color(color: tuple[int, int, int], max_jitter: int) -> tuple[int, int, int]:
     """Add random per-channel offset; clamp to [0, 255]."""
-    return tuple(
-        max(0, min(255, c + random.randint(-max_jitter, max_jitter))) for c in color
-    )
+    r, g, b = (max(0, min(255, c + random.randint(-max_jitter, max_jitter))) for c in color)
+    return (r, g, b)
 
 
-_TaskTuple = tuple[
-    int, str, str, int, float, str, tuple[int, int, int], tuple[int, int, int]
-]
+_TaskTuple = tuple[int, str, str, int, float, str, tuple[int, int, int], tuple[int, int, int]]
 
 
 def _prepare_tasks(
@@ -132,9 +132,7 @@ def _prepare_tasks(
             font_size = random.randint(config["font_size_min"], config["font_size_max"])
             skew_angle = random.uniform(config["skew_min"], config["skew_max"])
             page_color = random.choice(PAGE_COLORS)
-            text_color = _jitter_color(
-                random.choice(INK_COLORS), INK_COLOR_JITTER
-            )
+            text_color = _jitter_color(random.choice(INK_COLORS), INK_COLOR_JITTER)
             tasks.append(
                 (
                     idx,
@@ -213,9 +211,7 @@ def _generate_multi_process(
             )
             futures[fut] = i
 
-        for fut in tqdm(
-            as_completed(futures), total=len(futures), desc="Generating images"
-        ):
+        for fut in tqdm(as_completed(futures), total=len(futures), desc="Generating images"):
             res = fut.result()
             if res is not None:
                 results.append(res)
@@ -278,16 +274,12 @@ def generate_dataset(
 
     valid_fonts = get_valid_fonts(fonts_dir)
     if not valid_fonts:
-        raise RuntimeError(
-            f"No fonts with Ukrainian character support found in '{fonts_dir}'. "
-        )
+        raise RuntimeError(f"No fonts with Ukrainian character support found in '{fonts_dir}'. ")
     logger.info(f"Found {len(valid_fonts)} valid font(s) in '{fonts_dir}' directory")
 
     creation_date = datetime.now().strftime("%Y%m%d")
     all_tasks: list[_TaskTuple] = []
-    backgrounds_dir_resolved: Path | None = (
-        Path(backgrounds_dir) if backgrounds_dir else None
-    )
+    backgrounds_dir_resolved: Path | None = Path(backgrounds_dir) if backgrounds_dir else None
 
     if isinstance(sentences, dict):
         for filename, file_sentences in sentences.items():

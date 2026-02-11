@@ -67,18 +67,14 @@ class RandomStains(ImageOnlyTransform):
         rng = np.random.default_rng(seed=random.randint(0, 1000))
 
         noise = rng.integers(0, 255, (h, w), np.uint8, True)
-        blur = cv2.GaussianBlur(
-            noise, (0, 0), sigmaX=15, sigmaY=15, borderType=cv2.BORDER_DEFAULT
-        )
+        blur = cv2.GaussianBlur(noise, (0, 0), sigmaX=15, sigmaY=15, borderType=cv2.BORDER_DEFAULT)
 
         # Rescale intensity (replaces skimage.exposure.rescale_intensity)
         bmin, bmax = float(blur.min()), float(blur.max())
         if bmax - bmin > 0:
-            stretch = ((blur.astype(np.float32) - bmin) / (bmax - bmin) * 255).astype(
-                np.uint8
-            )
+            stretch = ((blur.astype(np.float32) - bmin) / (bmax - bmin) * 255).astype(np.uint8)
         else:
-            stretch = blur
+            stretch = blur.astype(np.uint8)
 
         thresh = cv2.threshold(stretch, 175, 255, cv2.THRESH_BINARY)[1]
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))
@@ -105,9 +101,7 @@ class RandomBlurredStains(ImageOnlyTransform):
         rng = np.random.default_rng(seed=random.randint(0, 1000))
 
         noise = rng.integers(0, 255, (h, w), np.uint8, True)
-        blur = cv2.GaussianBlur(
-            noise, (0, 0), sigmaX=15, sigmaY=15, borderType=cv2.BORDER_DEFAULT
-        )
+        blur = cv2.GaussianBlur(noise, (0, 0), sigmaX=15, sigmaY=15, borderType=cv2.BORDER_DEFAULT)
         bg = cv2.merge([blur, blur, blur]).astype(np.float32)
         bg_min, bg_max = bg.min(), bg.max()
         if bg_max - bg_min > 0:
@@ -140,9 +134,9 @@ class RandomShadow(ImageOnlyTransform):
         random_bright = 0.25 + 0.7 * np.random.uniform()
 
         if np.random.randint(2) == 1:
-            img_hls[:, :, 1][shadow_mask] = (
-                img_hls[:, :, 1][shadow_mask] * random_bright
-            ).astype(np.uint8)
+            img_hls[:, :, 1][shadow_mask] = (img_hls[:, :, 1][shadow_mask] * random_bright).astype(
+                np.uint8
+            )
         else:
             img_hls[:, :, 1][~shadow_mask] = (
                 img_hls[:, :, 1][~shadow_mask] * random_bright
@@ -209,7 +203,9 @@ class InkColorShift(ImageOnlyTransform):
         strength = random.uniform(0.1, self.hue_shift_max / 100.0)
         h = hsv[:, :, 0].astype(np.float32)
         h_shifted = (h + (target_hue - h) * strength) % 180
-        hsv[:, :, 0] = np.where(text_mask, np.clip(h_shifted, 0, 179).astype(np.uint8), hsv[:, :, 0])
+        hsv[:, :, 0] = np.where(
+            text_mask, np.clip(h_shifted, 0, 179).astype(np.uint8), hsv[:, :, 0]
+        )
         return cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
 
 
@@ -233,9 +229,7 @@ class PaperAgeing(ImageOnlyTransform):
         if not np.any(bg_mask):
             return img
         # Sepia-like tint: warm brown on background
-        sepia = np.array(
-            [[0.393, 0.769, 0.189], [0.349, 0.686, 0.168], [0.272, 0.534, 0.131]]
-        )
+        sepia = np.array([[0.393, 0.769, 0.189], [0.349, 0.686, 0.168], [0.272, 0.534, 0.131]])
         blended = np.clip(img.astype(np.float32) @ sepia.T, 0, 255).astype(np.uint8)
         out = img.copy()
         out[bg_mask] = np.clip(

@@ -45,9 +45,7 @@ def render_line(
     img_arr = np.full((canvas_h, canvas_w, 3), fill_value=page_color, dtype=np.uint8)
     img = Image.fromarray(img_arr)
     draw = ImageDraw.Draw(img)
-    draw.text(
-        (-x_min + margin[0], -y_min + margin[1]), text, fill=text_color, font=font
-    )
+    draw.text((-x_min + margin[0], -y_min + margin[1]), text, fill=text_color, font=font)
     return np.array(img)
 
 
@@ -72,15 +70,16 @@ def apply_skew(img: np.ndarray, angle: float) -> np.ndarray:
     else:
         padded = np.concatenate([np.zeros((h, extra, 3), dtype=np.uint8), inv], axis=1)
 
-    M = np.float32([[1, -angle, 0], [0, 1, 0]])
+    M: np.ndarray = np.array([[1, -angle, 0], [0, 1, 0]], dtype=np.float32)
+    dsize = (int(padded.shape[1]), int(padded.shape[0]))
     skewed = cv2.warpAffine(
         padded,
         M,
-        (padded.shape[1], padded.shape[0]),
+        dsize,
         flags=cv2.WARP_INVERSE_MAP | cv2.INTER_LINEAR,
     )
     # Invert back
-    return (255 - skewed).astype(np.uint8)
+    return np.asarray(255 - skewed, dtype=np.uint8)
 
 
 def load_background_textures(dir_path: Path) -> list[np.ndarray]:
