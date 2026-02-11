@@ -5,7 +5,9 @@
 [![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)](https://github.com/ValeriiSielikhov/ukrainian-handwriting-synth/actions)
 [![Python](https://img.shields.io/badge/python-3.14+-blue?style=flat-square)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![uv](https://img.shields.io/badge/uv-managed-FFE4B4?style=flat-square&logo=uv)](https://docs.astral.sh/uv/)
 [![Code style](https://img.shields.io/badge/code%20style-Ruff-blue?style=flat-square&logo=ruff)](https://docs.astral.sh/ruff/)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square&logo=github)](https://github.com/ValeriiSielikhov/ukrainian-handwriting-synth/blob/main/CONTRIBUTING.md)
 
 </div>
 
