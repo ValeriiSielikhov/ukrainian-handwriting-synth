@@ -64,8 +64,6 @@ def get_logger(logger_name: str | None = None) -> logging.Logger:
     logging.Logger
         Logger instance.
     """
-    global _logger
-
     if _logger is None:
         name = logger_name or "ukr_synth"
         return logger_setup(logger_name=name)

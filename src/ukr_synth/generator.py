@@ -50,6 +50,83 @@ def _generate_single(
 
 
 # ---------------------------------------------------------------------------
+# Helper functions
+# ---------------------------------------------------------------------------
+
+
+def _prepare_tasks(
+    sentences: list[str],
+    valid_fonts: list[Path],
+    num_per_sentence: int,
+    config: dict,
+) -> list[tuple[int, str, str, int, float]]:
+    """Prepare all generation tasks."""
+    tasks: list[tuple[int, str, str, int, float]] = []
+    idx = 0
+    for sentence in sentences:
+        usable = get_fonts_for_text(valid_fonts, sentence)
+        if not usable:
+            continue
+        for _ in range(num_per_sentence):
+            font_path = str(random.choice(usable))
+            font_size = random.randint(config["font_size_min"], config["font_size_max"])
+            skew_angle = random.uniform(config["skew_min"], config["skew_max"])
+            tasks.append((idx, sentence, font_path, font_size, skew_angle))
+            idx += 1
+    return tasks
+
+
+def _generate_single_process(
+    tasks: list[tuple[int, str, str, int, float]],
+    augment_prob: float,
+    output_dir: Path,
+) -> list[dict]:
+    """Generate images in single-process mode."""
+    logger.info("Generating images in single-process mode")
+    results: list[dict] = []
+    for task in tqdm(tasks, desc="Generating images"):
+        i, text, fp, fs, sa = task
+        res = _generate_single(i, text, fp, fs, sa, augment_prob, str(output_dir))
+        if res is not None:
+            results.append(res)
+    return results
+
+
+def _generate_multi_process(
+    tasks: list[tuple[int, str, str, int, float]],
+    augment_prob: float,
+    output_dir: Path,
+    workers: int,
+) -> list[dict]:
+    """Generate images in multi-process mode."""
+    logger.info(f"Generating images in multi-process mode with {workers} workers")
+    results: list[dict] = []
+    futures = {}
+    with ProcessPoolExecutor(max_workers=workers) as pool:
+        for task in tasks:
+            i, text, fp, fs, sa = task
+            fut = pool.submit(
+                _generate_single,
+                i,
+                text,
+                fp,
+                fs,
+                sa,
+                augment_prob,
+                str(output_dir),
+            )
+            futures[fut] = i
+
+        for fut in tqdm(
+            as_completed(futures), total=len(futures), desc="Generating images"
+        ):
+            res = fut.result()
+            if res is not None:
+                results.append(res)
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -95,7 +172,6 @@ def generate_dataset(
         logger.info(f"Setting random seed to {seed}")
         random.seed(seed)
 
-    # Discover valid fonts
     valid_fonts = get_valid_fonts(fonts_dir)
     if not valid_fonts:
         raise RuntimeError(
@@ -104,66 +180,16 @@ def generate_dataset(
         )
     logger.info(f"Found {len(valid_fonts)} valid font(s) in '{fonts_dir}' directory")
 
-    cfg = DEFAULT_CONFIG
-
-    # Pre-compute all tasks (idx, text, font, size, angle)
-    tasks: list[tuple[int, str, str, int, float]] = []
-    idx = 0
-    for sentence in sentences:
-        # Filter fonts that can actually render this sentence
-        usable = get_fonts_for_text(valid_fonts, sentence)
-        if not usable:
-            continue
-        for _ in range(num_per_sentence):
-            font_path = str(random.choice(usable))
-            font_size = random.randint(cfg["font_size_min"], cfg["font_size_max"])
-            skew_angle = random.uniform(cfg["skew_min"], cfg["skew_max"])
-            tasks.append((idx, sentence, font_path, font_size, skew_angle))
-            idx += 1
-
+    tasks = _prepare_tasks(sentences, valid_fonts, num_per_sentence, DEFAULT_CONFIG)
     logger.info(f"Generating {len(tasks)} images from {len(sentences)} sentences")
 
-    results: list[dict] = []
-
     if workers <= 1:
-        # Single-process mode (easier to debug)
-        logger.info("Generating images in single-process mode")
-        for task in tqdm(tasks, desc="Generating images"):
-            i, text, fp, fs, sa = task
-            res = _generate_single(i, text, fp, fs, sa, augment_prob, str(output_dir))
-            if res is not None:
-                results.append(res)
+        results = _generate_single_process(tasks, augment_prob, output_dir)
     else:
-        # Multi-process mode
-        logger.info(f"Generating images in multi-process mode with {workers} workers")
+        results = _generate_multi_process(tasks, augment_prob, output_dir, workers)
 
-        futures = {}
-        with ProcessPoolExecutor(max_workers=workers) as pool:
-            for task in tasks:
-                i, text, fp, fs, sa = task
-                fut = pool.submit(
-                    _generate_single,
-                    i,
-                    text,
-                    fp,
-                    fs,
-                    sa,
-                    augment_prob,
-                    str(output_dir),
-                )
-                futures[fut] = i
-
-            for fut in tqdm(
-                as_completed(futures), total=len(futures), desc="Generating images"
-            ):
-                res = fut.result()
-                if res is not None:
-                    results.append(res)
-
-    # Sort by filename for deterministic ordering
     results.sort(key=lambda r: r["filename"])
 
-    # Write labels
     labels_path = output_dir / "labels.csv"
     df = pd.DataFrame(results)
     df.to_csv(labels_path, sep="\t", index=False, header=False)
