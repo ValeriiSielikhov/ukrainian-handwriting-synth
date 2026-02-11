@@ -12,7 +12,6 @@ from albumentations import (
     CLAHE,
     Compose,
     GaussNoise,
-    HueSaturationValue,
     ImageCompression,
     ISONoise,
     MedianBlur,
@@ -53,51 +52,6 @@ class Dilation(ImageOnlyTransform):
 
     def apply(self, img: np.ndarray, **params) -> np.ndarray:
         return cv2.dilate(img, np.ones((2, 2), np.uint8), iterations=1)
-
-
-class GradientBackground(ImageOnlyTransform):
-    """Overlay a gradient onto the background."""
-
-    def __init__(self, always_apply: bool = False, p: float = 0.5):
-        super().__init__(p=p)
-
-    def apply(self, img: np.ndarray, **params) -> np.ndarray:
-        light = random.choice([True, False])
-        rotate = random.randint(0, 3)
-        color = random.randint(100, 200)
-        h, w = img.shape[:2]
-
-        # Create gradient directly at (h, w) size instead of (w, w) square
-        # Start with a 1D gradient
-        if rotate in [0, 2]:
-            # Vertical gradient
-            gradient_1d = np.linspace(1, 0, h)[:, np.newaxis]  # (h, 1)
-            gradient = np.broadcast_to(gradient_1d, (h, w))  # (h, w)
-        else:
-            # Horizontal gradient
-            gradient_1d = np.linspace(1, 0, w)[np.newaxis, :]  # (1, w)
-            gradient = np.broadcast_to(gradient_1d, (h, w))  # (h, w)
-
-        # Rotate if needed
-        if rotate == 1:
-            gradient = np.rot90(gradient, 1)
-        elif rotate == 2:
-            gradient = np.rot90(gradient, 2)
-        elif rotate == 3:
-            gradient = np.rot90(gradient, 3)
-
-        # Expand to 3 channels
-        gradient = gradient[:, :, np.newaxis]  # (h, w, 1)
-        gradient = np.broadcast_to(gradient, (h, w, 3))  # (h, w, 3)
-
-        # Create background
-        bg = np.ones((h, w, 3), dtype=np.uint8) * 255
-        bg = (gradient * bg + (1 - gradient) * color).astype(np.uint8)
-        bg = 255 - bg
-
-        if light:
-            return cv2.add(img, bg)
-        return 255 - cv2.add(255 - img, bg)
 
 
 class RandomStains(ImageOnlyTransform):
@@ -230,6 +184,69 @@ class ChangeWidth(ImageOnlyTransform):
         return cv2.resize(img, (new_w, img.shape[0]), interpolation=cv2.INTER_AREA)
 
 
+class InkColorShift(ImageOnlyTransform):
+    """Shift hue of text (dark) pixels toward blue/violet to simulate ink variation."""
+
+    def __init__(
+        self,
+        text_luminance_threshold: int = 200,
+        hue_shift_max: int = 40,
+        always_apply: bool = False,
+        p: float = 0.5,
+    ):
+        super().__init__(p=p)
+        self.text_luminance_threshold = text_luminance_threshold
+        self.hue_shift_max = hue_shift_max  # max blend strength in percent (e.g. 40 -> 0.4)
+
+    def apply(self, img: np.ndarray, **params) -> np.ndarray:
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        text_mask = gray < self.text_luminance_threshold
+        if not np.any(text_mask):
+            return img
+        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        # OpenCV H is 0-180; blue ~120, violet ~140
+        target_hue = random.randint(110, 150)
+        strength = random.uniform(0.1, self.hue_shift_max / 100.0)
+        h = hsv[:, :, 0].astype(np.float32)
+        h_shifted = (h + (target_hue - h) * strength) % 180
+        hsv[:, :, 0] = np.where(text_mask, np.clip(h_shifted, 0, 179).astype(np.uint8), hsv[:, :, 0])
+        return cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+
+
+class PaperAgeing(ImageOnlyTransform):
+    """Apply localized yellowing/browning to background pixels only."""
+
+    def __init__(
+        self,
+        text_luminance_threshold: int = 200,
+        strength: float = 0.3,
+        always_apply: bool = False,
+        p: float = 0.5,
+    ):
+        super().__init__(p=p)
+        self.text_luminance_threshold = text_luminance_threshold
+        self.strength = strength
+
+    def apply(self, img: np.ndarray, **params) -> np.ndarray:
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        bg_mask = gray >= self.text_luminance_threshold
+        if not np.any(bg_mask):
+            return img
+        # Sepia-like tint: warm brown on background
+        sepia = np.array(
+            [[0.393, 0.769, 0.189], [0.349, 0.686, 0.168], [0.272, 0.534, 0.131]]
+        )
+        blended = np.clip(img.astype(np.float32) @ sepia.T, 0, 255).astype(np.uint8)
+        out = img.copy()
+        out[bg_mask] = np.clip(
+            (1 - self.strength) * img[bg_mask].astype(np.float32)
+            + self.strength * blended[bg_mask].astype(np.float32),
+            0,
+            255,
+        ).astype(np.uint8)
+        return out
+
+
 # ---------------------------------------------------------------------------
 # Pipeline constructors
 # ---------------------------------------------------------------------------
@@ -250,7 +267,6 @@ def get_augmentation_pipeline(prob: float = 0.5) -> Compose:
                 [
                     RandomStains(p=1.0),
                     RandomBlurredStains(p=1.0),
-                    GradientBackground(p=1.0),
                     RandomShadow(p=1.0),
                 ],
                 p=prob,
@@ -287,14 +303,15 @@ def get_augmentation_pipeline(prob: float = 0.5) -> Compose:
                 ],
                 p=prob,
             ),
-            # 6. Color / brightness
+            # 6. Color / brightness / ink and paper
             OneOf(
                 [
                     RandomBrightnessContrast(p=1.0),
                     RandomGamma(gamma_limit=(50, 150), p=1.0),
-                    HueSaturationValue(p=1.0),
                     ToGray(p=1.0),
                     ToSepia(p=1.0),
+                    InkColorShift(p=1.0),
+                    PaperAgeing(p=1.0),
                 ],
                 p=prob,
             ),

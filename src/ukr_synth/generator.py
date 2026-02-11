@@ -11,27 +11,45 @@ import pandas as pd
 from tqdm import tqdm
 
 from ukr_synth.augmentations import get_augmentation_pipeline
-from ukr_synth.config import DEFAULT_CONFIG
+from ukr_synth.config import (
+    DEFAULT_CONFIG,
+    INK_COLOR_JITTER,
+    INK_COLORS,
+    PAGE_COLORS,
+)
 from ukr_synth.fonts import get_fonts_for_text, get_valid_fonts
 from ukr_synth.logger import get_logger
-from ukr_synth.renderer import apply_skew, render_line
+from ukr_synth.renderer import (
+    apply_background_texture,
+    apply_skew,
+    load_background_textures,
+    render_line,
+)
 
 logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
-# Per-worker pipeline cache (module-level for multiprocessing)
+# Per-worker state (module-level for multiprocessing)
 # ---------------------------------------------------------------------------
 
 _worker_pipeline = None
+_worker_backgrounds_dir: Path | None = None
+_worker_background_texture_prob: float = 0.0
 
 
-def _worker_init(augment_prob: float):
-    """Initialize worker process with cached augmentation pipeline."""
-    global _worker_pipeline
+def _worker_init(
+    augment_prob: float,
+    backgrounds_dir: str | Path | None = None,
+    background_texture_prob: float = 0.0,
+):
+    """Initialize worker process with cached augmentation pipeline and background settings."""
+    global _worker_pipeline, _worker_backgrounds_dir, _worker_background_texture_prob
     if augment_prob > 0:
         _worker_pipeline = get_augmentation_pipeline(prob=augment_prob)
     else:
         _worker_pipeline = None
+    _worker_backgrounds_dir = Path(backgrounds_dir) if backgrounds_dir else None
+    _worker_background_texture_prob = background_texture_prob
 
 
 # ---------------------------------------------------------------------------
@@ -45,14 +63,22 @@ def _generate_single(
     font_path: str,
     font_size: int,
     skew_angle: float,
+    page_color: tuple[int, int, int],
+    text_color: tuple[int, int, int],
     augment_prob: float,
     output_dir: str,
     subfolder: str,
 ) -> dict | None:
     """Render one sentence and save the image. Returns metadata dict or None."""
     try:
-        img = render_line(text, font_path, font_size)
+        config = {"page_color": page_color, "text_color": text_color}
+        img = render_line(text, font_path, font_size, config=config)
         img = apply_skew(img, skew_angle)
+
+        if _worker_backgrounds_dir is not None and random.random() < _worker_background_texture_prob:
+            textures = load_background_textures(_worker_backgrounds_dir)
+            if textures:
+                img = apply_background_texture(img, textures, page_color)
 
         if _worker_pipeline is not None:
             img = _worker_pipeline(image=img)["image"]
@@ -75,15 +101,27 @@ def _generate_single(
 # ---------------------------------------------------------------------------
 
 
+def _jitter_color(color: tuple[int, int, int], max_jitter: int) -> tuple[int, int, int]:
+    """Add random per-channel offset; clamp to [0, 255]."""
+    return tuple(
+        max(0, min(255, c + random.randint(-max_jitter, max_jitter))) for c in color
+    )
+
+
+_TaskTuple = tuple[
+    int, str, str, int, float, str, tuple[int, int, int], tuple[int, int, int]
+]
+
+
 def _prepare_tasks(
     sentences: list[str],
     valid_fonts: list[Path],
     num_per_sentence: int,
     config: dict,
     subfolder: str,
-) -> list[tuple[int, str, str, int, float, str]]:
-    """Prepare all generation tasks."""
-    tasks: list[tuple[int, str, str, int, float, str]] = []
+) -> list[_TaskTuple]:
+    """Prepare all generation tasks with per-sample page and ink colors."""
+    tasks: list[_TaskTuple] = []
     idx = 0
     for sentence in sentences:
         usable = get_fonts_for_text(valid_fonts, sentence)
@@ -93,25 +131,45 @@ def _prepare_tasks(
             font_path = str(random.choice(usable))
             font_size = random.randint(config["font_size_min"], config["font_size_max"])
             skew_angle = random.uniform(config["skew_min"], config["skew_max"])
-            tasks.append((idx, sentence, font_path, font_size, skew_angle, subfolder))
+            page_color = random.choice(PAGE_COLORS)
+            text_color = _jitter_color(
+                random.choice(INK_COLORS), INK_COLOR_JITTER
+            )
+            tasks.append(
+                (
+                    idx,
+                    sentence,
+                    font_path,
+                    font_size,
+                    skew_angle,
+                    subfolder,
+                    page_color,
+                    text_color,
+                )
+            )
             idx += 1
     return tasks
 
 
 def _generate_single_process(
-    tasks: list[tuple[int, str, str, int, float, str]],
+    tasks: list[_TaskTuple],
     augment_prob: float,
     output_dir: Path,
+    backgrounds_dir: Path | None,
+    background_texture_prob: float,
 ) -> list[dict]:
     """Generate images in single-process mode."""
     logger.info("Generating images in single-process mode")
-    # Initialize pipeline once for single-process mode
-    _worker_init(augment_prob)
+    _worker_init(
+        augment_prob,
+        backgrounds_dir=backgrounds_dir,
+        background_texture_prob=background_texture_prob,
+    )
     results: list[dict] = []
     for task in tqdm(tasks, desc="Generating images"):
-        i, text, fp, fs, sa, subfolder = task
+        i, text, fp, fs, sa, subfolder, page_color, text_color = task
         res = _generate_single(
-            i, text, fp, fs, sa, augment_prob, str(output_dir), subfolder
+            i, text, fp, fs, sa, page_color, text_color, augment_prob, str(output_dir), subfolder
         )
         if res is not None:
             results.append(res)
@@ -119,20 +177,27 @@ def _generate_single_process(
 
 
 def _generate_multi_process(
-    tasks: list[tuple[int, str, str, int, float, str]],
+    tasks: list[_TaskTuple],
     augment_prob: float,
     output_dir: Path,
     workers: int,
+    backgrounds_dir: Path | None,
+    background_texture_prob: float,
 ) -> list[dict]:
     """Generate images in multi-process mode."""
     logger.info(f"Generating images in multi-process mode with {workers} workers")
     results: list[dict] = []
+    initargs = (
+        augment_prob,
+        str(backgrounds_dir) if backgrounds_dir else None,
+        background_texture_prob,
+    )
     futures = {}
     with ProcessPoolExecutor(
-        max_workers=workers, initializer=_worker_init, initargs=(augment_prob,)
+        max_workers=workers, initializer=_worker_init, initargs=initargs
     ) as pool:
         for task in tasks:
-            i, text, fp, fs, sa, subfolder = task
+            i, text, fp, fs, sa, subfolder, page_color, text_color = task
             fut = pool.submit(
                 _generate_single,
                 i,
@@ -140,6 +205,8 @@ def _generate_multi_process(
                 fp,
                 fs,
                 sa,
+                page_color,
+                text_color,
                 augment_prob,
                 str(output_dir),
                 subfolder,
@@ -168,6 +235,8 @@ def generate_dataset(
     augment_prob: float = 0.5,
     seed: int | None = None,
     workers: int = 4,
+    backgrounds_dir: str | Path | None = None,
+    background_texture_prob: float = 0.3,
 ) -> Path:
     """Generate the full dataset.
 
@@ -187,6 +256,12 @@ def generate_dataset(
         Random seed for reproducibility.
     workers:
         Number of parallel worker processes.
+    backgrounds_dir:
+        Directory with PNG texture backgrounds (lined/grid/kraft). When provided,
+        a fraction of images will use these as background instead of plain color.
+    background_texture_prob:
+        Probability (0–1) of applying a texture background per image when
+        backgrounds_dir is set. Default 0.3.
 
     Returns
     -------
@@ -209,7 +284,10 @@ def generate_dataset(
     logger.info(f"Found {len(valid_fonts)} valid font(s) in '{fonts_dir}' directory")
 
     creation_date = datetime.now().strftime("%Y%m%d")
-    all_tasks: list[tuple[int, str, str, int, float, str]] = []
+    all_tasks: list[_TaskTuple] = []
+    backgrounds_dir_resolved: Path | None = (
+        Path(backgrounds_dir) if backgrounds_dir else None
+    )
 
     if isinstance(sentences, dict):
         for filename, file_sentences in sentences.items():
@@ -252,10 +330,21 @@ def generate_dataset(
         )
 
     if workers <= 1:
-        all_results = _generate_single_process(all_tasks, augment_prob, output_dir)
+        all_results = _generate_single_process(
+            all_tasks,
+            augment_prob,
+            output_dir,
+            backgrounds_dir_resolved,
+            background_texture_prob,
+        )
     else:
         all_results = _generate_multi_process(
-            all_tasks, augment_prob, output_dir, workers
+            all_tasks,
+            augment_prob,
+            output_dir,
+            workers,
+            backgrounds_dir_resolved,
+            background_texture_prob,
         )
 
     all_results.sort(key=lambda r: r["filename"])

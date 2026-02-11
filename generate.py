@@ -4,6 +4,7 @@
 import argparse
 import multiprocessing
 
+from ukr_synth.config import BACKGROUNDS_DIR
 from ukr_synth.corpus import SENTENCES
 from ukr_synth.corpus_reader import corpus_reader
 from ukr_synth.generator import generate_dataset
@@ -55,14 +56,28 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=max(1, multiprocessing.cpu_count() - 2),
         help="Number of parallel worker processes (default: CPU count)",
     )
+    parser.add_argument(
+        "--backgrounds-dir",
+        "-b",
+        type=str,
+        default=None,
+        help="Directory with PNG texture backgrounds (default: use config BACKGROUNDS_DIR)",
+    )
+    parser.add_argument(
+        "--background-texture-prob",
+        type=float,
+        default=0.3,
+        help="Probability of applying a texture background when --backgrounds-dir is set (default: 0.3)",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     sentences = corpus_reader()
-    if not sentences:
+    if sentences:
         sentences = SENTENCES
+    backgrounds_dir = args.backgrounds_dir or BACKGROUNDS_DIR
     generate_dataset(
         sentences=sentences,
         fonts_dir=args.fonts_dir,
@@ -71,6 +86,8 @@ def main(argv: list[str] | None = None) -> None:
         augment_prob=args.augment_prob,
         seed=args.seed,
         workers=args.workers,
+        backgrounds_dir=backgrounds_dir,
+        background_texture_prob=args.background_texture_prob,
     )
 
 
