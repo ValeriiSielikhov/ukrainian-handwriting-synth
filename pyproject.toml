@@ -19,8 +19,8 @@ dependencies = [
     "albumentations",
     "pandas",
     "tqdm",
-    "flake8",
-    "flake8-pyproject",
+    "ruff",
+    "mypy",
 ]
 
 [build-system]
@@ -30,9 +30,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/ukr_synth"]
 
-[tool.flake8]
-max-line-length = 100
-max-complexity = 10
+[tool.ruff]
+target-version = "py314"
+line-length = 100
 exclude = [
     ".git",
     "__pycache__",
@@ -45,11 +45,15 @@ exclude = [
     "images",
     "fonts",
 ]
+
+[tool.ruff.lint]
 ignore = [
-    "E203",  # whitespace before ':'
-    "E501",  # line too long (handled by max-line-length)
-    "W503",  # line break before binary operator
+    "E501",   # line too long (handled by line-length)
+    "PLR0913", # too many arguments
 ]
-per-file-ignores = [
-    "__init__.py:F401",  # imported but unused
-]
+
+[tool.mypy]
+python_version = "3.14"
+warn_return_any = true
+warn_unused_ignores = true
+ignore_missing_imports = true
