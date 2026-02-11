@@ -2,7 +2,7 @@
 
 A tool for generating synthetic handwritten text images from digital fonts — designed for training OCR and HTR models.
 
-![Example output](images/example_1.png)
+<img src="images/example_1.png" alt="Example output" style="width: 100%; max-width: 100%;">
 
 <table style="width: 100%;">
 <tr>
