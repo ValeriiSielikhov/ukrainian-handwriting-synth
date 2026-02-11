@@ -205,7 +205,6 @@ def generate_dataset(
     if not valid_fonts:
         raise RuntimeError(
             f"No fonts with Ukrainian character support found in '{fonts_dir}'. "
-            "Run scripts/download_fonts.sh first."
         )
     logger.info(f"Found {len(valid_fonts)} valid font(s) in '{fonts_dir}' directory")
 
