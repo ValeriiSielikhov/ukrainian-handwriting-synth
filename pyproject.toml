@@ -12,6 +12,7 @@ keywords = ["handwriting", "synthetic", "dataset", "ukrainian", "ocr", "text-gen
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
+    "fonttools",
     "pillow",
     "opencv-python",
     "numpy",
