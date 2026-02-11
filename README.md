@@ -4,6 +4,25 @@ A tool for generating synthetic handwritten text images from digital fonts — d
 
 ![Example output](images/example_1.png)
 
+<table style="width: 100%;">
+<tr>
+<td style="width: 50%;"><img src="images/example_2.png" alt="Example 2" style="width: 100%;"></td>
+<td style="width: 50%;"><img src="images/example_3.png" alt="Example 3" style="width: 100%;"></td>
+</tr>
+<tr>
+<td><img src="images/example_4.png" alt="Example 4" style="width: 100%;"></td>
+<td><img src="images/example_5.png" alt="Example 5" style="width: 100%;"></td>
+</tr>
+<tr>
+<td><img src="images/example_6.png" alt="Example 6" style="width: 100%;"></td>
+<td><img src="images/example_7.png" alt="Example 7" style="width: 100%;"></td>
+</tr>
+<tr>
+<td><img src="images/example_8.png" alt="Example 8" style="width: 100%;"></td>
+<td><img src="images/example_9.png" alt="Example 9" style="width: 100%;"></td>
+</tr>
+</table>
+
 ## Overview
 
 This project renders text strings using handwriting-style fonts and produces labeled image datasets. Each image is a single line of text with randomized font size, skew, and optional augmentations applied. The output is ready for use as training data for optical character recognition (OCR) or handwritten text recognition (HTR) pipelines.
