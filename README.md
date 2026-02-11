@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Build](https://img.shields.io/badge/build-passing-brightgreen?style=flat-square)](https://github.com/)
+[![Build](https://img.shields.io/github/actions/workflow/status/ValeriiSielikhov/ukrainian-handwriting-synth/python.yml?branch=main&style=flat-square)](https://github.com/ValeriiSielikhov/ukrainian-handwriting-synth/actions)
 [![Python](https://img.shields.io/badge/python-3.14+-blue?style=flat-square)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 [![Code style](https://img.shields.io/badge/code%20style-Ruff-blue?style=flat-square&logo=ruff)](https://docs.astral.sh/ruff/)
