@@ -75,7 +75,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     sentences = corpus_reader()
-    if sentences:
+    if not sentences:
         sentences = SENTENCES
     backgrounds_dir = args.backgrounds_dir or BACKGROUNDS_DIR
     generate_dataset(
