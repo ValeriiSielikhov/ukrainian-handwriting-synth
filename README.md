@@ -26,50 +26,50 @@ config:
   layout: dagre
 ---
 flowchart TD
-    classDef root fill:#e1f5ff,stroke:#01579b,stroke-width:2px
-    classDef entry fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    classDef config fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef module fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    classDef data fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef root fill:#1976d2,stroke:#0d47a1,stroke-width:3px,color:#fff
+    classDef entry fill:#388e3c,stroke:#1b5e20,stroke-width:2px,color:#fff
+    classDef config fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#fff
+    classDef module fill:#7b1fa2,stroke:#4a148c,stroke-width:2px,color:#fff
+    classDef data fill:#c2185b,stroke:#880e4f,stroke-width:2px,color:#fff
 
     Root["."]:::root
 
-    subgraph Entry["Entry Points"]
+    Root --> EntryGroup["Entry Points"]
+    Root --> ConfigGroup["Configuration"]
+    Root --> SourceGroup["Source Code"]
+    Root --> DataGroup["Data"]
+
+    subgraph EntryGroup[" "]
+        direction TB
         Generate["generate.py<br/>CLI entry point"]:::entry
         Run["run.sh<br/>Quick-run helper"]:::entry
     end
 
-    subgraph Config["Configuration"]
+    subgraph ConfigGroup[" "]
+        direction TB
         PyProject["pyproject.toml<br/>Project metadata"]:::config
     end
 
-    subgraph Source["Source Code"]
+    subgraph SourceGroup[" "]
+        direction TB
         Src["src/"]
         UkrSynth["ukr_synth/"]:::module
-        
         Src --> UkrSynth
-        
         UkrSynth --> Init["__init__.py"]:::module
-        UkrSynth --> ConfigPy["config.py<br/>Character sets, defaults"]:::module
-        UkrSynth --> CorpusPy["corpus.py<br/>Text data source"]:::module
-        UkrSynth --> FontsPy["fonts.py<br/>Font discovery & validation"]:::module
-        UkrSynth --> RendererPy["renderer.py<br/>Rendering (PIL) & skew"]:::module
-        UkrSynth --> AugPy["augmentations.py<br/>Augmentation pipeline"]:::module
-        UkrSynth --> GeneratorPy["generator.py<br/>Orchestration & parallelism"]:::module
-        UkrSynth --> LoggerPy["logger.py<br/>Logging config"]:::module
+        UkrSynth --> ConfigPy["config.py"]:::module
+        UkrSynth --> CorpusPy["corpus.py"]:::module
+        UkrSynth --> FontsPy["fonts.py"]:::module
+        UkrSynth --> RendererPy["renderer.py"]:::module
+        UkrSynth --> AugPy["augmentations.py"]:::module
+        UkrSynth --> GeneratorPy["generator.py"]:::module
+        UkrSynth --> LoggerPy["logger.py"]:::module
     end
 
-    subgraph Data["Data Directories"]
-        Fonts["fonts/<br/>Font files (.ttf / .otf)"]:::data
-        Images["images/<br/>Example outputs"]:::data
+    subgraph DataGroup[" "]
+        direction TB
+        Fonts["fonts/<br/>Font files"]:::data
+        Images["images/<br/>Examples"]:::data
     end
-
-    Root --> Generate
-    Root --> Run
-    Root --> PyProject
-    Root --> Src
-    Root --> Fonts
-    Root --> Images
 ```
 
 ## Architecture
@@ -80,11 +80,11 @@ config:
   layout: dagre
 ---
 flowchart TD
-    classDef input fill:#e3f2fd,stroke:#01579b,stroke-width:2px
-    classDef process fill:#fff3e0,stroke:#e65100,stroke-width:2px
-    classDef render fill:#f1f8e9,stroke:#2e7d32,stroke-width:2px
-    classDef augment fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    classDef output fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    classDef input fill:#1976d2,stroke:#0d47a1,stroke-width:3px,color:#fff
+    classDef process fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#fff
+    classDef render fill:#388e3c,stroke:#1b5e20,stroke-width:2px,color:#fff
+    classDef augment fill:#c2185b,stroke:#880e4f,stroke-width:2px,color:#fff
+    classDef output fill:#00796b,stroke:#004d40,stroke-width:2px,color:#fff
 
     subgraph Input["Input Data"]
         Text["Text Corpus<br/>(sentences/phrases)"]:::input
@@ -111,7 +111,7 @@ flowchart TD
     Selection --> Render
     Render --> Skew
     Skew --> Augment
-    Augment -->|"morphology, noise,<br/>distortions, artifacts"| AugOut
+    Augment -->|"apply transforms"| AugOut
     Augment -->|"skip"| AugOut
     AugOut --> Images
     AugOut --> Labels
