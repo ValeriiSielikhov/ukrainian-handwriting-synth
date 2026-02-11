@@ -39,8 +39,9 @@ def _generate_single(
             pipeline = get_augmentation_pipeline(prob=augment_prob)
             img = pipeline(image=img)["image"]
 
-        font_name = Path(font_path).stem
-        filename = f"{font_name}_{idx:06d}.png"
+        # font_name = Path(font_path).stem
+        # filename = f"{font_name}_{idx:06d}.png"
+        filename = f"{idx:06d}.png"
         img_path = Path(output_dir) / "images" / filename
         cv2.imwrite(str(img_path), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         return {"filename": f"images/{filename}", "text": text}
