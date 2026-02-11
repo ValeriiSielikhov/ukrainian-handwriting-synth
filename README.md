@@ -32,8 +32,9 @@ The generator is built with Ukrainian in mind but can be adapted to any language
 ## Features
 
 - **Font validation** — automatically discovers and validates fonts against required character sets using `fontTools` cmap tables (no fallback glyphs)
-- **Randomized rendering** — each sample varies font, size, and horizontal skew for realistic diversity
-- **Augmentation pipeline** — morphological transforms, noise, geometric distortions (rotate, perspective, width change), background artifacts, shadows, and color shifts via `albumentations` and custom transforms; optimized for throughput (lightweight transforms, per-worker pipeline caching, auto-reduced workers when augmentation is enabled)
+- **Randomized rendering** — each sample varies font, size, skew, page color (white, cream, off-white), and ink color (black, dark blue, navy, violet) with per-channel jitter for realistic diversity
+- **Background textures** — optional PNG textures (lined, grid, kraft) from a directory; applied with configurable probability to simulate paper surfaces
+- **Augmentation pipeline** — morphological transforms, noise, geometric distortions (rotate, perspective, width change), background artifacts (stains, shadows), color shifts, **InkColorShift** (blue/violet ink variation), **PaperAgeing** (sepia-like yellowing); optimized for throughput (lightweight transforms, per-worker pipeline caching, auto-reduced workers when augmentation is enabled)
 - **Parallel generation** — multiprocess workers for fast dataset creation; worker count is automatically reduced when augmentation is active to prevent system overload
 - **Structured output** — images saved as JPEGs with a tab-separated labels file mapping each image to its source text
 
@@ -89,6 +90,7 @@ flowchart TD
         direction TB
         Fonts["fonts/<br/>Font files"]:::data
         Images["images/<br/>Examples"]:::data
+        DataDir["src/data/<br/>background textures"]:::data
     end
 ```
 
@@ -109,6 +111,7 @@ flowchart TD
     subgraph Input["Input Data"]
         Text["Text Corpus<br/>(sentences/phrases)"]:::input
         FontDir["Font Files<br/>(.ttf / .otf)"]:::input
+        BgDir["Background Textures<br/>(optional PNG)"]:::input
     end
 
     subgraph Processing["Processing Pipeline"]
@@ -116,6 +119,7 @@ flowchart TD
         Selection["Font Selection<br/>(per sentence)"]:::process
         Render["Rendering<br/>(PIL ImageFont)"]:::render
         Skew["Apply Skew<br/>(OpenCV warpAffine)"]:::render
+        BgTex["Background Texture<br/>(optional)"]:::render
         Augment{"Augmentation<br/>(optional)"}:::augment
         AugOut["Augmented Image"]:::augment
     end
@@ -127,10 +131,12 @@ flowchart TD
 
     Text --> Validation
     FontDir --> Validation
+    BgDir --> BgTex
     Validation --> Selection
     Selection --> Render
     Render --> Skew
-    Skew --> Augment
+    Skew --> BgTex
+    BgTex --> Augment
     Augment -->|"apply transforms"| AugOut
     Augment -->|"skip"| AugOut
     AugOut --> Images
@@ -173,6 +179,8 @@ python generate.py \
     --fonts-dir fonts \
     --num-per-sentence 1 \
     --augment-prob 0.5 \
+    --backgrounds-dir src/data/background \
+    --background-texture-prob 0.3 \
     --seed 42 \
     --workers 4
 ```
@@ -183,6 +191,8 @@ python generate.py \
 | `--fonts-dir`, `-f` | Directory containing `.ttf` / `.otf` font files | `fonts` |
 | `--num-per-sentence`, `-n` | Number of image variants per sentence | `1` |
 | `--augment-prob`, `-a` | Probability of each augmentation stage (0 to disable) | `0.5` |
+| `--backgrounds-dir`, `-b` | Directory with PNG texture backgrounds (lined, grid, kraft) | config default: `src/data/background` |
+| `--background-texture-prob` | Probability of applying a texture background per image | `0.3` |
 | `--seed`, `-s` | Random seed for reproducibility | `None` |
 | `--workers`, `-w` | Number of parallel worker processes | CPU count - 2 (auto-reduced when augmentation is enabled) |
 
@@ -198,6 +208,7 @@ bash run.sh
 
 - **Text** — supplied by `corpus_reader()`, which reads JSONL files from `src/data/ukr_text_corpuses` (each line: `{"text_plain": "..."}`). Lines are split by newlines; subfolders are named after the source filename. If no JSONL files are found, it falls back to `SENTENCES` from `corpus.py`. You can also pass a list of strings or a dict mapping filename to list of sentences directly to `generate_dataset()`.
 - **Fonts** — `.ttf` or `.otf` files placed in the fonts directory. Each font is automatically validated to ensure it contains proper glyphs for the target language characters — fonts with missing glyphs are excluded.
+- **Background textures** — optional PNG images in `src/data/background` (default) or custom path via `--backgrounds-dir`. Textures (kraft.png, white_grid.png, white_lines.png) are applied with `--background-texture-prob` (default 0.3).
 
 ## Output
 
