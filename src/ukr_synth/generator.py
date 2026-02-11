@@ -1,0 +1,170 @@
+"""Main dataset generation orchestrator."""
+
+import random
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
+
+import cv2
+import pandas as pd
+from tqdm import tqdm
+
+from ukr_synth.augmentations import get_augmentation_pipeline
+from ukr_synth.config import DEFAULT_CONFIG
+from ukr_synth.fonts import get_fonts_for_text, get_valid_fonts
+from ukr_synth.logger import get_logger
+from ukr_synth.renderer import apply_skew, render_line
+
+logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Worker function (top-level so it is picklable for multiprocessing)
+# ---------------------------------------------------------------------------
+
+
+def _generate_single(
+    idx: int,
+    text: str,
+    font_path: str,
+    font_size: int,
+    skew_angle: float,
+    augment_prob: float,
+    output_dir: str,
+) -> dict | None:
+    """Render one sentence and save the image. Returns metadata dict or None."""
+    try:
+        img = render_line(text, font_path, font_size)
+        img = apply_skew(img, skew_angle)
+
+        if augment_prob > 0:
+            pipeline = get_augmentation_pipeline(prob=augment_prob)
+            img = pipeline(image=img)["image"]
+
+        font_name = Path(font_path).stem
+        filename = f"{font_name}_{idx:06d}.png"
+        img_path = Path(output_dir) / "images" / filename
+        cv2.imwrite(str(img_path), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        return {"filename": f"images/{filename}", "text": text}
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+
+def generate_dataset(
+    sentences: list[str],
+    fonts_dir: str | Path,
+    output_dir: str | Path,
+    num_per_sentence: int = 10,
+    augment_prob: float = 0.5,
+    seed: int | None = None,
+    workers: int = 4,
+) -> Path:
+    """Generate the full dataset.
+
+    Parameters
+    ----------
+    sentences:
+        List of Ukrainian text lines to render.
+    fonts_dir:
+        Directory containing .ttf/.otf font files.
+    output_dir:
+        Root output directory. Images are saved under ``output_dir/images/``.
+    num_per_sentence:
+        How many image variants to create for each sentence.
+    augment_prob:
+        Probability of applying each augmentation stage (0 = no aug).
+    seed:
+        Random seed for reproducibility.
+    workers:
+        Number of parallel worker processes.
+
+    Returns
+    -------
+    Path to the generated ``labels.csv`` file.
+    """
+    logger.info("Generating dataset...")
+    output_dir = Path(output_dir)
+    (output_dir / "images").mkdir(parents=True, exist_ok=True)
+    logger.info(f"Created output directory: {output_dir / 'images'}")
+
+    if seed is not None:
+        logger.info(f"Setting random seed to {seed}")
+        random.seed(seed)
+
+    # Discover valid fonts
+    valid_fonts = get_valid_fonts(fonts_dir)
+    if not valid_fonts:
+        raise RuntimeError(
+            f"No fonts with Ukrainian character support found in '{fonts_dir}'. "
+            "Run scripts/download_fonts.sh first."
+        )
+    logger.info(f"Found {len(valid_fonts)} valid font(s) in '{fonts_dir}' directory")
+
+    cfg = DEFAULT_CONFIG
+
+    # Pre-compute all tasks (idx, text, font, size, angle)
+    tasks: list[tuple[int, str, str, int, float]] = []
+    idx = 0
+    for sentence in sentences:
+        # Filter fonts that can actually render this sentence
+        usable = get_fonts_for_text(valid_fonts, sentence)
+        if not usable:
+            continue
+        for _ in range(num_per_sentence):
+            font_path = str(random.choice(usable))
+            font_size = random.randint(cfg["font_size_min"], cfg["font_size_max"])
+            skew_angle = random.uniform(cfg["skew_min"], cfg["skew_max"])
+            tasks.append((idx, sentence, font_path, font_size, skew_angle))
+            idx += 1
+
+    logger.info(f"Generating {len(tasks)} images from {len(sentences)} sentences")
+
+    results: list[dict] = []
+
+    if workers <= 1:
+        # Single-process mode (easier to debug)
+        logger.info("Generating images in single-process mode")
+        for task in tqdm(tasks, desc="Generating images"):
+            i, text, fp, fs, sa = task
+            res = _generate_single(i, text, fp, fs, sa, augment_prob, str(output_dir))
+            if res is not None:
+                results.append(res)
+    else:
+        # Multi-process mode
+        logger.info(f"Generating images in multi-process mode with {workers} workers")
+
+        futures = {}
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            for task in tasks:
+                i, text, fp, fs, sa = task
+                fut = pool.submit(
+                    _generate_single,
+                    i,
+                    text,
+                    fp,
+                    fs,
+                    sa,
+                    augment_prob,
+                    str(output_dir),
+                )
+                futures[fut] = i
+
+            for fut in tqdm(
+                as_completed(futures), total=len(futures), desc="Generating images"
+            ):
+                res = fut.result()
+                if res is not None:
+                    results.append(res)
+
+    # Sort by filename for deterministic ordering
+    results.sort(key=lambda r: r["filename"])
+
+    # Write labels
+    labels_path = output_dir / "labels.csv"
+    df = pd.DataFrame(results)
+    df.to_csv(labels_path, sep="\t", index=False, header=False)
+    logger.info(f"Done. {len(results)} images saved. Labels: {labels_path}")
+    return labels_path
