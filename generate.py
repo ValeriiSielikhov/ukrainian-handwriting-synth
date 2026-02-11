@@ -52,7 +52,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--workers",
         "-w",
         type=int,
-        default=multiprocessing.cpu_count(),
+        default=max(1, multiprocessing.cpu_count() - 2),
         help="Number of parallel worker processes (default: CPU count)",
     )
     return parser.parse_args(argv)
