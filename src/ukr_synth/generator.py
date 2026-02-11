@@ -1,5 +1,6 @@
 """Main dataset generation orchestrator."""
 
+import multiprocessing
 import random
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime
@@ -16,6 +17,22 @@ from ukr_synth.logger import get_logger
 from ukr_synth.renderer import apply_skew, render_line
 
 logger = get_logger(__name__)
+
+# ---------------------------------------------------------------------------
+# Per-worker pipeline cache (module-level for multiprocessing)
+# ---------------------------------------------------------------------------
+
+_worker_pipeline = None
+
+
+def _worker_init(augment_prob: float):
+    """Initialize worker process with cached augmentation pipeline."""
+    global _worker_pipeline
+    if augment_prob > 0:
+        _worker_pipeline = get_augmentation_pipeline(prob=augment_prob)
+    else:
+        _worker_pipeline = None
+
 
 # ---------------------------------------------------------------------------
 # Worker function (top-level so it is picklable for multiprocessing)
@@ -37,9 +54,8 @@ def _generate_single(
         img = render_line(text, font_path, font_size)
         img = apply_skew(img, skew_angle)
 
-        if augment_prob > 0:
-            pipeline = get_augmentation_pipeline(prob=augment_prob)
-            img = pipeline(image=img)["image"]
+        if _worker_pipeline is not None:
+            img = _worker_pipeline(image=img)["image"]
 
         font_name = Path(font_path).stem
         filename = f"{font_name}_{idx:06d}.jpg"
@@ -89,6 +105,8 @@ def _generate_single_process(
 ) -> list[dict]:
     """Generate images in single-process mode."""
     logger.info("Generating images in single-process mode")
+    # Initialize pipeline once for single-process mode
+    _worker_init(augment_prob)
     results: list[dict] = []
     for task in tqdm(tasks, desc="Generating images"):
         i, text, fp, fs, sa, subfolder = task
@@ -110,7 +128,9 @@ def _generate_multi_process(
     logger.info(f"Generating images in multi-process mode with {workers} workers")
     results: list[dict] = []
     futures = {}
-    with ProcessPoolExecutor(max_workers=workers) as pool:
+    with ProcessPoolExecutor(
+        max_workers=workers, initializer=_worker_init, initargs=(augment_prob,)
+    ) as pool:
         for task in tasks:
             i, text, fp, fs, sa, subfolder = task
             fut = pool.submit(
@@ -221,6 +241,16 @@ def generate_dataset(
         )
 
     logger.info(f"Generating {len(all_tasks)} images total")
+
+    # Auto-reduce workers when augmentation is heavy to prevent system overload
+    cpu_count = multiprocessing.cpu_count()
+    if augment_prob > 0 and workers > max(1, cpu_count // 2):
+        original_workers = workers
+        workers = max(1, cpu_count // 2)
+        logger.info(
+            f"Augmentation enabled: reducing workers from {original_workers} to {workers} "
+            f"to prevent system overload"
+        )
 
     if workers <= 1:
         all_results = _generate_single_process(all_tasks, augment_prob, output_dir)

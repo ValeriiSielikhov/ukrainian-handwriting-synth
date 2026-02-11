@@ -11,9 +11,7 @@ import numpy as np
 from albumentations import (
     CLAHE,
     Compose,
-    ElasticTransform,
     GaussNoise,
-    GridDistortion,
     HueSaturationValue,
     ImageCompression,
     ISONoise,
@@ -21,7 +19,6 @@ from albumentations import (
     MotionBlur,
     MultiplicativeNoise,
     OneOf,
-    OpticalDistortion,
     Perspective,
     RandomBrightnessContrast,
     RandomGamma,
@@ -70,19 +67,33 @@ class GradientBackground(ImageOnlyTransform):
         color = random.randint(100, 200)
         h, w = img.shape[:2]
 
-        bg = np.ones((w, w, 3), dtype=np.uint8) * 255
-        gradient = np.rot90(
-            np.repeat(
-                np.tile(np.linspace(1, 0, bg.shape[0]), (bg.shape[0], 1))[
-                    :, :, np.newaxis
-                ],
-                3,
-                axis=2,
-            ),
-            rotate,
-        )
+        # Create gradient directly at (h, w) size instead of (w, w) square
+        # Start with a 1D gradient
+        if rotate in [0, 2]:
+            # Vertical gradient
+            gradient_1d = np.linspace(1, 0, h)[:, np.newaxis]  # (h, 1)
+            gradient = np.broadcast_to(gradient_1d, (h, w))  # (h, w)
+        else:
+            # Horizontal gradient
+            gradient_1d = np.linspace(1, 0, w)[np.newaxis, :]  # (1, w)
+            gradient = np.broadcast_to(gradient_1d, (h, w))  # (h, w)
+
+        # Rotate if needed
+        if rotate == 1:
+            gradient = np.rot90(gradient, 1)
+        elif rotate == 2:
+            gradient = np.rot90(gradient, 2)
+        elif rotate == 3:
+            gradient = np.rot90(gradient, 3)
+
+        # Expand to 3 channels
+        gradient = gradient[:, :, np.newaxis]  # (h, w, 1)
+        gradient = np.broadcast_to(gradient, (h, w, 3))  # (h, w, 3)
+
+        # Create background
+        bg = np.ones((h, w, 3), dtype=np.uint8) * 255
         bg = (gradient * bg + (1 - gradient) * color).astype(np.uint8)
-        bg = 255 - cv2.resize(bg, (w, h), interpolation=cv2.INTER_AREA)
+        bg = 255 - bg
 
         if light:
             return cv2.add(img, bg)
@@ -167,10 +178,11 @@ class RandomShadow(ImageOnlyTransform):
         bot_y = w * np.random.uniform()
 
         img_hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
-        X_m = np.mgrid[0:h, 0:w][0]
-        Y_m = np.mgrid[0:h, 0:w][1]
+        # Use broadcasting instead of np.mgrid to avoid allocating full arrays
+        rows = np.arange(h)[:, np.newaxis]  # (h, 1)
+        cols = np.arange(w)[np.newaxis, :]  # (1, w)
 
-        shadow_mask = (X_m - 0) * (bot_y - top_y) - (h - 0) * (Y_m - top_y) >= 0
+        shadow_mask = (rows - 0) * (bot_y - top_y) - (h - 0) * (cols - top_y) >= 0
         random_bright = 0.25 + 0.7 * np.random.uniform()
 
         if np.random.randint(2) == 1:
@@ -265,14 +277,11 @@ def get_augmentation_pipeline(prob: float = 0.5) -> Compose:
                 ],
                 p=prob,
             ),
-            # 5. Geometric
+            # 5. Geometric (lightweight transforms only - removed expensive ElasticTransform/GridDistortion/OpticalDistortion)
             OneOf(
                 [
                     Rotate(limit=2, p=1.0),
                     SafeRotate(limit=5, p=1.0),
-                    ElasticTransform(p=1.0),
-                    GridDistortion(p=1.0),
-                    OpticalDistortion(distort_limit=0.2, p=1.0),
                     Perspective(fit_output=True, p=1.0),
                     ChangeWidth(p=1.0),
                 ],
