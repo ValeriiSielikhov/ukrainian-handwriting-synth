@@ -2,6 +2,7 @@
 
 import random
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 
 import cv2
@@ -29,6 +30,7 @@ def _generate_single(
     skew_angle: float,
     augment_prob: float,
     output_dir: str,
+    subfolder: str,
 ) -> dict | None:
     """Render one sentence and save the image. Returns metadata dict or None."""
     try:
@@ -39,12 +41,11 @@ def _generate_single(
             pipeline = get_augmentation_pipeline(prob=augment_prob)
             img = pipeline(image=img)["image"]
 
-        # font_name = Path(font_path).stem
-        # filename = f"{font_name}_{idx:06d}.png"
-        filename = f"{idx:06d}.png"
-        img_path = Path(output_dir) / "images" / filename
+        font_name = Path(font_path).stem
+        filename = f"{font_name}_{idx:06d}.png"
+        img_path = Path(output_dir) / "images" / subfolder / filename
         cv2.imwrite(str(img_path), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
-        return {"filename": f"images/{filename}", "text": text}
+        return {"filename": f"images/{subfolder}/{filename}", "text": text}
     except Exception:
         return None
 
@@ -59,9 +60,10 @@ def _prepare_tasks(
     valid_fonts: list[Path],
     num_per_sentence: int,
     config: dict,
-) -> list[tuple[int, str, str, int, float]]:
+    subfolder: str,
+) -> list[tuple[int, str, str, int, float, str]]:
     """Prepare all generation tasks."""
-    tasks: list[tuple[int, str, str, int, float]] = []
+    tasks: list[tuple[int, str, str, int, float, str]] = []
     idx = 0
     for sentence in sentences:
         usable = get_fonts_for_text(valid_fonts, sentence)
@@ -71,13 +73,13 @@ def _prepare_tasks(
             font_path = str(random.choice(usable))
             font_size = random.randint(config["font_size_min"], config["font_size_max"])
             skew_angle = random.uniform(config["skew_min"], config["skew_max"])
-            tasks.append((idx, sentence, font_path, font_size, skew_angle))
+            tasks.append((idx, sentence, font_path, font_size, skew_angle, subfolder))
             idx += 1
     return tasks
 
 
 def _generate_single_process(
-    tasks: list[tuple[int, str, str, int, float]],
+    tasks: list[tuple[int, str, str, int, float, str]],
     augment_prob: float,
     output_dir: Path,
 ) -> list[dict]:
@@ -85,15 +87,17 @@ def _generate_single_process(
     logger.info("Generating images in single-process mode")
     results: list[dict] = []
     for task in tqdm(tasks, desc="Generating images"):
-        i, text, fp, fs, sa = task
-        res = _generate_single(i, text, fp, fs, sa, augment_prob, str(output_dir))
+        i, text, fp, fs, sa, subfolder = task
+        res = _generate_single(
+            i, text, fp, fs, sa, augment_prob, str(output_dir), subfolder
+        )
         if res is not None:
             results.append(res)
     return results
 
 
 def _generate_multi_process(
-    tasks: list[tuple[int, str, str, int, float]],
+    tasks: list[tuple[int, str, str, int, float, str]],
     augment_prob: float,
     output_dir: Path,
     workers: int,
@@ -104,7 +108,7 @@ def _generate_multi_process(
     futures = {}
     with ProcessPoolExecutor(max_workers=workers) as pool:
         for task in tasks:
-            i, text, fp, fs, sa = task
+            i, text, fp, fs, sa, subfolder = task
             fut = pool.submit(
                 _generate_single,
                 i,
@@ -114,6 +118,7 @@ def _generate_multi_process(
                 sa,
                 augment_prob,
                 str(output_dir),
+                subfolder,
             )
             futures[fut] = i
 
@@ -132,7 +137,7 @@ def _generate_multi_process(
 
 
 def generate_dataset(
-    sentences: list[str],
+    sentences: dict[str, list[str]] | list[str],
     fonts_dir: str | Path,
     output_dir: str | Path,
     num_per_sentence: int = 10,
@@ -145,7 +150,7 @@ def generate_dataset(
     Parameters
     ----------
     sentences:
-        List of Ukrainian text lines to render.
+        Dict mapping filename to list of Ukrainian text lines, or list of text lines.
     fonts_dir:
         Directory containing .ttf/.otf font files.
     output_dir:
@@ -180,18 +185,50 @@ def generate_dataset(
         )
     logger.info(f"Found {len(valid_fonts)} valid font(s) in '{fonts_dir}' directory")
 
-    tasks = _prepare_tasks(sentences, valid_fonts, num_per_sentence, DEFAULT_CONFIG)
-    logger.info(f"Generating {len(tasks)} images from {len(sentences)} sentences")
+    creation_date = datetime.now().strftime("%Y%m%d")
+    all_tasks: list[tuple[int, str, str, int, float, str]] = []
+
+    if isinstance(sentences, dict):
+        for filename, file_sentences in sentences.items():
+            subfolder = f"{filename}_{creation_date}"
+            (output_dir / "images" / subfolder).mkdir(parents=True, exist_ok=True)
+            logger.info(f"Created subfolder: {subfolder}")
+
+            tasks = _prepare_tasks(
+                file_sentences,
+                valid_fonts,
+                num_per_sentence,
+                DEFAULT_CONFIG,
+                subfolder,
+            )
+            all_tasks.extend(tasks)
+            logger.info(f"Prepared {len(tasks)} tasks for {filename}")
+    else:
+        subfolder = f"dataset_{creation_date}"
+        (output_dir / "images" / subfolder).mkdir(parents=True, exist_ok=True)
+        logger.info(f"Created subfolder: {subfolder}")
+
+        all_tasks = _prepare_tasks(
+            sentences,
+            valid_fonts,
+            num_per_sentence,
+            DEFAULT_CONFIG,
+            subfolder,
+        )
+
+    logger.info(f"Generating {len(all_tasks)} images total")
 
     if workers <= 1:
-        results = _generate_single_process(tasks, augment_prob, output_dir)
+        all_results = _generate_single_process(all_tasks, augment_prob, output_dir)
     else:
-        results = _generate_multi_process(tasks, augment_prob, output_dir, workers)
+        all_results = _generate_multi_process(
+            all_tasks, augment_prob, output_dir, workers
+        )
 
-    results.sort(key=lambda r: r["filename"])
+    all_results.sort(key=lambda r: r["filename"])
 
     labels_path = output_dir / "labels.csv"
-    df = pd.DataFrame(results)
+    df = pd.DataFrame(all_results)
     df.to_csv(labels_path, sep="\t", index=False, header=False)
-    logger.info(f"Done. {len(results)} images saved. Labels: {labels_path}")
+    logger.info(f"Done. {len(all_results)} images saved. Labels: {labels_path}")
     return labels_path

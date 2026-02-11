@@ -11,6 +11,9 @@ logger = get_logger(__name__)
 
 FONT_EXTENSIONS = (".ttf", ".otf")
 
+# Cache: font_path -> frozenset of supported Unicode code points. Populated on first use.
+_font_cmap_cache: dict[str, frozenset[int]] = {}
+
 
 def _font_has_glyph(font_tt: TTFont, char: str) -> bool:
     """Check if the font has a glyph for the given character (no fallback)."""
@@ -21,15 +24,31 @@ def _font_has_glyph(font_tt: TTFont, char: str) -> bool:
     return False
 
 
-def _font_supports_chars(font_path: str, chars: set[str]) -> bool:
+def _load_font_cmap(font_path: str) -> frozenset[int]:
+    """Load font once and return set of supported code points. Cached for reuse."""
+    if font_path in _font_cmap_cache:
+        return _font_cmap_cache[font_path]
     try:
         font_tt = TTFont(font_path)
         try:
-            return all(_font_has_glyph(font_tt, ch) for ch in chars)
+            codepoints: set[int] = set()
+            for table in font_tt["cmap"].tables:
+                codepoints.update(table.cmap.keys())
+            result = frozenset(codepoints)
+            _font_cmap_cache[font_path] = result
+            return result
         finally:
             font_tt.close()
     except Exception:
-        return False
+        _font_cmap_cache[font_path] = frozenset()
+        return frozenset()
+
+
+def _font_supports_chars_cached(font_path: str, chars: set[str]) -> bool:
+    """Check if font supports all chars using cached cmap (no file I/O after first load)."""
+    cmap = _load_font_cmap(font_path)
+    required_cps = {ord(ch) for ch in chars}
+    return required_cps.issubset(cmap)
 
 
 def discover_fonts(fonts_dir: str | Path) -> list[Path]:
@@ -47,9 +66,11 @@ def validate_font(
 
     Uses fontTools to read the font cmap directly. This avoids PIL's fallback
     behavior (squares, emojis, skipped glyphs) when a character is missing.
+    Populates the cmap cache for use by get_fonts_for_text.
     """
+    path_str = str(font_path)
     try:
-        font_tt = TTFont(str(font_path))
+        font_tt = TTFont(path_str)
     except Exception:
         return False
 
@@ -57,6 +78,10 @@ def validate_font(
         for char in required_chars:
             if not _font_has_glyph(font_tt, char):
                 return False
+        codepoints: set[int] = set()
+        for table in font_tt["cmap"].tables:
+            codepoints.update(table.cmap.keys())
+        _font_cmap_cache[path_str] = frozenset(codepoints)
         return True
     finally:
         font_tt.close()
@@ -86,4 +111,4 @@ def get_fonts_for_text(
     required = {ch for ch in text if ch in UKR_REQUIRED_CHARS}
     if not required:
         return list(valid_fonts)
-    return [p for p in valid_fonts if _font_supports_chars(str(p), required)]
+    return [p for p in valid_fonts if _font_supports_chars_cached(str(p), required)]
