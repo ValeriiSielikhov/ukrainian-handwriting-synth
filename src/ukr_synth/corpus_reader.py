@@ -11,6 +11,8 @@ logger = get_logger(__name__)
 _ROOT = Path(__file__).resolve().parents[2]
 CORPUS_PATH = _ROOT / "src" / "data" / "ukr_text_corpuses"
 JSONL_EXT = "*.jsonl"
+MAX_LINE_LENGTH = 150
+MAX_SENTENCES = 100
 
 
 def corpus_reader():
@@ -24,8 +26,8 @@ def corpus_reader():
                 data = json.loads(example)["text_plain"].split("\n")
                 for line in data:
                     if line and line.strip():
-                        sentences.append(line)
+                        sentences.append(line.strip()[:MAX_LINE_LENGTH])
     shuffle(sentences)
-    sentences = sentences[:100]
+    sentences = sentences[:MAX_SENTENCES]
     logger.info(f"Loaded {len(sentences)} sentences")
     return sentences

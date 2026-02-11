@@ -5,6 +5,7 @@ import argparse
 import multiprocessing
 
 from ukr_synth.corpus import SENTENCES
+from ukr_synth.corpus_reader import corpus_reader
 from ukr_synth.generator import generate_dataset
 
 
@@ -59,8 +60,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
+    sentences = corpus_reader()
+    sentences = sentences if sentences else SENTENCES
     generate_dataset(
-        sentences=SENTENCES,
+        sentences=sentences,
         fonts_dir=args.fonts_dir,
         output_dir=args.output_dir,
         num_per_sentence=args.num_per_sentence,
