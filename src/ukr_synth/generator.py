@@ -277,7 +277,7 @@ def generate_dataset(
         raise RuntimeError(f"No fonts with Ukrainian character support found in '{fonts_dir}'. ")
     logger.info(f"Found {len(valid_fonts)} valid font(s) in '{fonts_dir}' directory")
 
-    creation_date = datetime.now().strftime("%Y%m%d")
+    creation_date = datetime.now().strftime("%Y%m%d-%H:%M:%S")
     all_tasks: list[_TaskTuple] = []
     backgrounds_dir_resolved: Path | None = Path(backgrounds_dir) if backgrounds_dir else None
 
