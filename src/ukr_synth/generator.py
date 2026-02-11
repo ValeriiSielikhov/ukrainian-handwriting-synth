@@ -42,9 +42,13 @@ def _generate_single(
             img = pipeline(image=img)["image"]
 
         font_name = Path(font_path).stem
-        filename = f"{font_name}_{idx:06d}.png"
+        filename = f"{font_name}_{idx:06d}.jpg"
         img_path = Path(output_dir) / "images" / subfolder / filename
-        cv2.imwrite(str(img_path), cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        cv2.imwrite(
+            str(img_path),
+            cv2.cvtColor(img, cv2.COLOR_RGB2BGR),
+            [cv2.IMWRITE_JPEG_QUALITY, 95],
+        )
         return {"filename": f"images/{subfolder}/{filename}", "text": text}
     except Exception:
         return None
