@@ -57,17 +57,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Number of parallel worker processes (default: CPU count)",
     )
     parser.add_argument(
-        "--backgrounds-dir",
-        "-b",
-        type=str,
-        default=None,
-        help="Directory with PNG texture backgrounds (default: use config BACKGROUNDS_DIR)",
-    )
-    parser.add_argument(
         "--background-texture-prob",
         type=float,
-        default=0.3,
-        help="Probability of applying a texture background when --backgrounds-dir is set (default: 0.3)",
+        default=0.5,
+        help="Probability of applying a texture background (default: 0.3)",
     )
     return parser.parse_args(argv)
 
@@ -75,9 +68,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     sentences = corpus_reader()
-    if not sentences:
+    if sentences:
         sentences = SENTENCES
-    backgrounds_dir = args.backgrounds_dir or BACKGROUNDS_DIR
     generate_dataset(
         sentences=sentences,
         fonts_dir=args.fonts_dir,
@@ -86,7 +78,7 @@ def main(argv: list[str] | None = None) -> None:
         augment_prob=args.augment_prob,
         seed=args.seed,
         workers=args.workers,
-        backgrounds_dir=backgrounds_dir,
+        backgrounds_dir=BACKGROUNDS_DIR,
         background_texture_prob=args.background_texture_prob,
     )
 
