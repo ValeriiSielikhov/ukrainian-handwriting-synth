@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
@@ -68,9 +69,18 @@ def _generate_single(
     augment_prob: float,
     output_dir: str,
     subfolder: str,
+    seed: int | None = None,
 ) -> dict | None:
     """Render one sentence and save the image. Returns metadata dict or None."""
     try:
+        # Per-task seed: deterministic regardless of which worker processes this task
+        if seed is not None:
+            task_seed = seed + idx
+            random.seed(task_seed)
+            np.random.seed(task_seed)
+            if _worker_pipeline is not None:
+                _worker_pipeline.set_random_seed(task_seed)
+
         config = {"page_color": page_color, "text_color": text_color}
         img = render_line(text, font_path, font_size, config=config)
         img = apply_skew(img, skew_angle)
@@ -153,6 +163,7 @@ def _generate_single_process(
     tasks: list[_TaskTuple],
     augment_prob: float,
     output_dir: Path,
+    seed: int | None,
     backgrounds_dir: Path | None,
     background_texture_prob: float,
 ) -> list[dict]:
@@ -167,7 +178,8 @@ def _generate_single_process(
     for task in tqdm(tasks, desc="Generating images"):
         i, text, fp, fs, sa, subfolder, page_color, text_color = task
         res = _generate_single(
-            i, text, fp, fs, sa, page_color, text_color, augment_prob, str(output_dir), subfolder
+            i, text, fp, fs, sa, page_color, text_color, augment_prob, str(output_dir), subfolder,
+            seed=seed,
         )
         if res is not None:
             results.append(res)
@@ -178,6 +190,7 @@ def _generate_multi_process(
     tasks: list[_TaskTuple],
     augment_prob: float,
     output_dir: Path,
+    seed: int | None,
     workers: int,
     backgrounds_dir: Path | None,
     background_texture_prob: float,
@@ -208,6 +221,7 @@ def _generate_multi_process(
                 augment_prob,
                 str(output_dir),
                 subfolder,
+                seed,
             )
             futures[fut] = i
 
@@ -271,6 +285,7 @@ def generate_dataset(
     if seed is not None:
         logger.info(f"Setting random seed to {seed}")
         random.seed(seed)
+        np.random.seed(seed)
 
     valid_fonts = get_valid_fonts(fonts_dir)
     if not valid_fonts:
@@ -326,6 +341,7 @@ def generate_dataset(
             all_tasks,
             augment_prob,
             output_dir,
+            seed,
             backgrounds_dir_resolved,
             background_texture_prob,
         )
@@ -334,6 +350,7 @@ def generate_dataset(
             all_tasks,
             augment_prob,
             output_dir,
+            seed,
             workers,
             backgrounds_dir_resolved,
             background_texture_prob,

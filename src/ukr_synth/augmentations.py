@@ -64,9 +64,7 @@ class RandomStains(ImageOnlyTransform):
         light = random.choice([True, False])
         color = random.randint(100, 200)
         h, w = img.shape[:2]
-        rng = np.random.default_rng(seed=random.randint(0, 1000))
-
-        noise = rng.integers(0, 255, (h, w), np.uint8, True)
+        noise = np.random.randint(0, 255, (h, w), dtype=np.uint8)
         blur = cv2.GaussianBlur(noise, (0, 0), sigmaX=15, sigmaY=15, borderType=cv2.BORDER_DEFAULT)
 
         # Rescale intensity (replaces skimage.exposure.rescale_intensity)
@@ -98,9 +96,7 @@ class RandomBlurredStains(ImageOnlyTransform):
         light = random.choice([True, False])
         max_color = random.randint(100, 200)
         h, w = img.shape[:2]
-        rng = np.random.default_rng(seed=random.randint(0, 1000))
-
-        noise = rng.integers(0, 255, (h, w), np.uint8, True)
+        noise = np.random.randint(0, 255, (h, w), dtype=np.uint8)
         blur = cv2.GaussianBlur(noise, (0, 0), sigmaX=15, sigmaY=15, borderType=cv2.BORDER_DEFAULT)
         bg = cv2.merge([blur, blur, blur]).astype(np.float32)
         bg_min, bg_max = bg.min(), bg.max()
@@ -122,8 +118,8 @@ class RandomShadow(ImageOnlyTransform):
 
     def apply(self, img: np.ndarray, **params) -> np.ndarray:
         h, w = img.shape[:2]
-        top_y = w * np.random.uniform()
-        bot_y = w * np.random.uniform()
+        top_y = w * random.uniform(0, 1)
+        bot_y = w * random.uniform(0, 1)
 
         img_hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
         # Use broadcasting instead of np.mgrid to avoid allocating full arrays
@@ -131,9 +127,9 @@ class RandomShadow(ImageOnlyTransform):
         cols = np.arange(w)[np.newaxis, :]  # (1, w)
 
         shadow_mask = (rows - 0) * (bot_y - top_y) - (h - 0) * (cols - top_y) >= 0
-        random_bright = 0.25 + 0.7 * np.random.uniform()
+        random_bright = 0.25 + 0.7 * random.uniform(0, 1)
 
-        if np.random.randint(2) == 1:
+        if random.randint(0, 1) == 1:
             img_hls[:, :, 1][shadow_mask] = (img_hls[:, :, 1][shadow_mask] * random_bright).astype(
                 np.uint8
             )
