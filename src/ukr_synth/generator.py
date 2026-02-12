@@ -178,7 +178,16 @@ def _generate_single_process(
     for task in tqdm(tasks, desc="Generating images"):
         i, text, fp, fs, sa, subfolder, page_color, text_color = task
         res = _generate_single(
-            i, text, fp, fs, sa, page_color, text_color, augment_prob, str(output_dir), subfolder,
+            i,
+            text,
+            fp,
+            fs,
+            sa,
+            page_color,
+            text_color,
+            augment_prob,
+            str(output_dir),
+            subfolder,
             seed=seed,
         )
         if res is not None:
