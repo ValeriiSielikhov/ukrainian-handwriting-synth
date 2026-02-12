@@ -341,7 +341,7 @@ def generate_dataset(
 
     all_results.sort(key=lambda r: r["filename"])
 
-    labels_path = output_dir / "labels.csv"
+    labels_path = output_dir / f"labels_{creation_date}.csv"
     df = pd.DataFrame(all_results)
     df.to_csv(labels_path, sep="\t", index=False, header=False)
     logger.info(f"Done. {len(all_results)} images saved. Labels: {labels_path}")

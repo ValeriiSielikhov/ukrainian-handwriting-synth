@@ -68,7 +68,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
     sentences = corpus_reader()
-    if sentences:
+    if not sentences:
         sentences = SENTENCES
     generate_dataset(
         sentences=sentences,
