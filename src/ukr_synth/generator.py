@@ -46,7 +46,11 @@ def _worker_init(
     image_mode: str = "rgb",
 ):
     """Initialize worker process with cached augmentation pipeline and background settings."""
-    global _worker_pipeline, _worker_backgrounds_dir, _worker_background_texture_prob, _worker_image_mode
+    global \
+        _worker_pipeline, \
+        _worker_backgrounds_dir, \
+        _worker_background_texture_prob, \
+        _worker_image_mode
     if augment_prob > 0:
         _worker_pipeline = get_augmentation_pipeline(prob=augment_prob)
     else:
