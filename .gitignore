@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+output/
+.DS_Store
+.cursor/
+ukr_text_corpuses/
+odd/
+.ruff_cache/
+.mypy_cache/
