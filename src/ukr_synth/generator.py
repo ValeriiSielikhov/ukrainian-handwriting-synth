@@ -36,21 +36,24 @@ logger = get_logger(__name__)
 _worker_pipeline = None
 _worker_backgrounds_dir: Path | None = None
 _worker_background_texture_prob: float = 0.0
+_worker_image_mode: str = "rgb"
 
 
 def _worker_init(
     augment_prob: float,
     backgrounds_dir: str | Path | None = None,
     background_texture_prob: float = 0.0,
+    image_mode: str = "rgb",
 ):
     """Initialize worker process with cached augmentation pipeline and background settings."""
-    global _worker_pipeline, _worker_backgrounds_dir, _worker_background_texture_prob
+    global _worker_pipeline, _worker_backgrounds_dir, _worker_background_texture_prob, _worker_image_mode
     if augment_prob > 0:
         _worker_pipeline = get_augmentation_pipeline(prob=augment_prob)
     else:
         _worker_pipeline = None
     _worker_backgrounds_dir = Path(backgrounds_dir) if backgrounds_dir else None
     _worker_background_texture_prob = background_texture_prob
+    _worker_image_mode = image_mode
 
 
 # ---------------------------------------------------------------------------
@@ -98,13 +101,20 @@ def _generate_single(
 
         font_name = Path(font_path).stem
         filename = f"{font_name}_{idx:06d}.jpg"
-        img_path = Path(output_dir) / "images" / subfolder / filename
+        out_dir = Path(output_dir) / subfolder
+        img_path = out_dir / filename
+        if _worker_image_mode == "gray":
+            img_to_save = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        else:
+            img_to_save = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
         cv2.imwrite(
             str(img_path),
-            cv2.cvtColor(img, cv2.COLOR_RGB2BGR),
+            img_to_save,
             [cv2.IMWRITE_JPEG_QUALITY, 95],
         )
-        return {"filename": f"images/{subfolder}/{filename}", "text": text}
+        txt_path = out_dir / f"{font_name}_{idx:06d}.txt"
+        txt_path.write_text(text, encoding="utf-8")
+        return {"filename": f"{subfolder}/{filename}", "text": text}
     except Exception:
         return None
 
@@ -166,6 +176,7 @@ def _generate_single_process(
     seed: int | None,
     backgrounds_dir: Path | None,
     background_texture_prob: float,
+    image_mode: str = "rgb",
 ) -> list[dict]:
     """Generate images in single-process mode."""
     logger.info("Generating images in single-process mode")
@@ -173,6 +184,7 @@ def _generate_single_process(
         augment_prob,
         backgrounds_dir=backgrounds_dir,
         background_texture_prob=background_texture_prob,
+        image_mode=image_mode,
     )
     results: list[dict] = []
     for task in tqdm(tasks, desc="Generating images"):
@@ -203,6 +215,7 @@ def _generate_multi_process(
     workers: int,
     backgrounds_dir: Path | None,
     background_texture_prob: float,
+    image_mode: str = "rgb",
 ) -> list[dict]:
     """Generate images in multi-process mode."""
     logger.info(f"Generating images in multi-process mode with {workers} workers")
@@ -211,6 +224,7 @@ def _generate_multi_process(
         augment_prob,
         str(backgrounds_dir) if backgrounds_dir else None,
         background_texture_prob,
+        image_mode,
     )
     futures = {}
     with ProcessPoolExecutor(
@@ -256,6 +270,7 @@ def generate_dataset(
     workers: int = 4,
     backgrounds_dir: str | Path | None = None,
     background_texture_prob: float = 0.3,
+    image_mode: str = "rgb",
 ) -> Path:
     """Generate the full dataset.
 
@@ -266,7 +281,7 @@ def generate_dataset(
     fonts_dir:
         Directory containing .ttf/.otf font files.
     output_dir:
-        Root output directory. Images are saved under ``output_dir/images/``.
+        Root output directory. Images and .txt references are saved under ``output_dir/{subfolder}/``.
     num_per_sentence:
         How many image variants to create for each sentence.
     augment_prob:
@@ -288,8 +303,8 @@ def generate_dataset(
     """
     logger.info("Generating dataset...")
     output_dir = Path(output_dir)
-    (output_dir / "images").mkdir(parents=True, exist_ok=True)
-    logger.info(f"Created output directory: {output_dir / 'images'}")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Created output directory: {output_dir}")
 
     if seed is not None:
         logger.info(f"Setting random seed to {seed}")
@@ -308,7 +323,7 @@ def generate_dataset(
     if isinstance(sentences, dict):
         for filename, file_sentences in sentences.items():
             subfolder = f"{filename}_{creation_date}"
-            (output_dir / "images" / subfolder).mkdir(parents=True, exist_ok=True)
+            (output_dir / subfolder).mkdir(parents=True, exist_ok=True)
             logger.info(f"Created subfolder: {subfolder}")
 
             tasks = _prepare_tasks(
@@ -322,7 +337,7 @@ def generate_dataset(
             logger.info(f"Prepared {len(tasks)} tasks for {filename}")
     else:
         subfolder = f"dataset_{creation_date}"
-        (output_dir / "images" / subfolder).mkdir(parents=True, exist_ok=True)
+        (output_dir / subfolder).mkdir(parents=True, exist_ok=True)
         logger.info(f"Created subfolder: {subfolder}")
 
         all_tasks = _prepare_tasks(
@@ -353,6 +368,7 @@ def generate_dataset(
             seed,
             backgrounds_dir_resolved,
             background_texture_prob,
+            image_mode,
         )
     else:
         all_results = _generate_multi_process(
@@ -363,6 +379,7 @@ def generate_dataset(
             workers,
             backgrounds_dir_resolved,
             background_texture_prob,
+            image_mode,
         )
 
     all_results.sort(key=lambda r: r["filename"])

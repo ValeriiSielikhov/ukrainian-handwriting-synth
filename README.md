@@ -47,7 +47,7 @@ The generator is built with Ukrainian in mind but can be adapted to any language
 - **Background textures** — optional PNG textures (lined, grid, kraft) from a directory; applied with configurable probability to simulate paper surfaces
 - **Augmentation pipeline** — morphological transforms, noise, geometric distortions (rotate, perspective, width change), background artifacts (stains, shadows), color shifts, **InkColorShift** (blue/violet ink variation), **PaperAgeing** (sepia-like yellowing); optimized for throughput (lightweight transforms, per-worker pipeline caching, auto-reduced workers when augmentation is enabled)
 - **Parallel generation** — multiprocess workers for fast dataset creation; worker count is automatically reduced when augmentation is active to prevent system overload
-- **Structured output** — images saved as JPEGs with a tab-separated labels file mapping each image to its source text
+- **Structured output** — images saved as JPEGs (RGB or grayscale); each image has a same-named `.txt` file with the reference text; a tab-separated labels file maps image path to source text
 
 ## Project Structure
 
@@ -100,8 +100,8 @@ flowchart TD
     subgraph DataGroup[" "]
         direction TB
         Fonts["fonts/<br/>Font files"]:::data
-        Images["images/<br/>Examples"]:::data
-        DataDir["src/data/<br/>background textures"]:::data
+        Images["images/<br/>Example images"]:::data
+        DataDir["src/data/background/<br/>Texture PNGs"]:::data
     end
 ```
 
@@ -136,8 +136,8 @@ flowchart TD
     end
 
     subgraph Output["Output"]
-        Images["images/<br/>JPEG files"]:::output
-        Labels["labels.csv<br/>Tab-separated"]:::output
+        Images["{subfolder}/<br/>JPEG + .txt"]:::output
+        Labels["labels_*.csv<br/>Tab-separated"]:::output
     end
 
     Text --> Validation
@@ -190,20 +190,20 @@ python generate.py \
     --fonts-dir fonts \
     --num-per-sentence 1 \
     --augment-prob 0.5 \
-    --backgrounds-dir src/data/background \
-    --background-texture-prob 0.3 \
+    --background-texture-prob 0.5 \
+    --image-mode rgb \
     --seed 42 \
     --workers 4
 ```
 
 | Flag | Description | Default |
 |---|---|---|
-| `--output-dir`, `-o` | Root directory for images and labels | `output` |
+| `--output-dir`, `-o` | Root directory for images, .txt references, and labels | `output` |
 | `--fonts-dir`, `-f` | Directory containing `.ttf` / `.otf` font files | `fonts` |
 | `--num-per-sentence`, `-n` | Number of image variants per sentence | `1` |
 | `--augment-prob`, `-a` | Probability of each augmentation stage (0 to disable) | `0.5` |
-| `--backgrounds-dir`, `-b` | Directory with PNG texture backgrounds (lined, grid, kraft) | config default: `src/data/background` |
-| `--background-texture-prob` | Probability of applying a texture background per image | `0.3` |
+| `--background-texture-prob` | Probability of applying a texture background per image (textures from `src/data/background`) | `0.5` |
+| `--image-mode` | Save images as `gray` or `rgb` | `rgb` |
 | `--seed`, `-s` | Random seed for reproducibility | `None` |
 | `--workers`, `-w` | Number of parallel worker processes | CPU count - 2 (auto-reduced when augmentation is enabled) |
 
@@ -219,22 +219,23 @@ bash run.sh
 
 - **Text** — supplied by `corpus_reader()`, which reads JSONL files from `src/data/ukr_text_corpuses` (each line: `{"text_plain": "..."}`). Lines are split by newlines; subfolders are named after the source filename. If no JSONL files are found, it falls back to `SENTENCES` from `corpus.py`. You can also pass a list of strings or a dict mapping filename to list of sentences directly to `generate_dataset()`.
 - **Fonts** — `.ttf` or `.otf` files placed in the fonts directory. Each font is automatically validated to ensure it contains proper glyphs for the target language characters — fonts with missing glyphs are excluded.
-- **Background textures** — optional PNG images in `src/data/background` (default) or custom path via `--backgrounds-dir`. Textures (kraft.png, white_grid.png, white_lines.png) are applied with `--background-texture-prob` (default 0.3).
+- **Background textures** — optional PNG images in `src/data/background` (config default; not overridable via CLI). Textures (kraft.png, white_grid.png, white_lines.png) are applied with `--background-texture-prob` (default 0.5).
 
 ## Output
 
 ```
 output/
-├── images/
-│   └── {subfolder}/
-│       ├── FontName_000000.jpg
-│       ├── FontName_000001.jpg
-│       └── ...
-└── labels.csv
+├── {subfolder}/
+│   ├── FontName_000000.jpg
+│   ├── FontName_000000.txt
+│   ├── FontName_000001.jpg
+│   ├── FontName_000001.txt
+│   └── ...
+└── labels_{creation_date}.csv
 ```
 
-- **images/** — rendered JPEG images, named `{FontName}_{index}.jpg`, organized in subfolders by corpus file and date
-- **labels.csv** — tab-separated file with columns: image path, source text (no header)
+- **{subfolder}/** — one subfolder per run (e.g. `dataset_YYYYMMDD-HH:MM:SS` or `{filename}_YYYYMMDD-HH:MM:SS`). Each contains JPEG images (`{FontName}_{index}.jpg`) and same-named `.txt` files with the reference text.
+- **labels_{creation_date}.csv** — tab-separated file with columns: image path (relative to output dir), source text (no header).
 
 ## License
 

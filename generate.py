@@ -62,6 +62,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=0.5,
         help="Probability of applying a texture background (default: 0.3)",
     )
+    parser.add_argument(
+        "--image-mode",
+        choices=["gray", "rgb"],
+        default="rgb",
+        help="Save images as grayscale or RGB (default: rgb)",
+    )
     return parser.parse_args(argv)
 
 
@@ -80,6 +86,7 @@ def main(argv: list[str] | None = None) -> None:
         workers=args.workers,
         backgrounds_dir=BACKGROUNDS_DIR,
         background_texture_prob=args.background_texture_prob,
+        image_mode=args.image_mode,
     )
 
 
