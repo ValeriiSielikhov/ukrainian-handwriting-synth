@@ -81,6 +81,8 @@ def validate_font(font_path: str | Path, required_chars: str = UKR_REQUIRED_CHAR
             codepoints.update(table.cmap.keys())
         _font_cmap_cache[path_str] = frozenset(codepoints)
         return True
+    except Exception:
+        return False
     finally:
         font_tt.close()
 
