@@ -17,6 +17,7 @@ from ukr_synth.config import (
     INK_COLOR_JITTER,
     INK_COLORS,
     PAGE_COLORS,
+    is_text_allowed,
 )
 from ukr_synth.fonts import get_fonts_for_text, get_valid_fonts
 from ukr_synth.logger import get_logger
@@ -148,6 +149,10 @@ def _prepare_tasks(
     tasks: list[_TaskTuple] = []
     idx = 0
     for sentence in sentences:
+        # Skip sentences with disallowed characters
+        if not is_text_allowed(sentence):
+            logger.debug(f"Skipped sentence with disallowed characters: {sentence[:50]}...")
+            continue
         usable = get_fonts_for_text(valid_fonts, sentence)
         if not usable:
             continue

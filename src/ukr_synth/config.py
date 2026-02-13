@@ -5,15 +5,33 @@ from pathlib import Path
 # Ukrainian Cyrillic alphabet (33 letters, upper + lower)
 UKR_UPPER = "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯ"
 UKR_LOWER = "абвгґдеєжзиіїйклмнопрстуфхцчшщьюя"
+# English Latin alphabet (A-Z, a-z)
+ENG_UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+ENG_LOWER = "abcdefghijklmnopqrstuvwxyz"
 UKR_DIGITS = "0123456789"
 UKR_PUNCTUATION = '.!"%(),-?:; '
-UKR_SPECIAL = "«»—–'№"
+UKR_SPECIAL = "@«»—–'№#₴$€£*"
 
-UKR_ALLOWED_SYMBOLS: str = UKR_UPPER + UKR_LOWER + UKR_DIGITS + UKR_PUNCTUATION + UKR_SPECIAL
+UKR_ALLOWED_SYMBOLS: str = (
+    UKR_UPPER + UKR_LOWER + ENG_UPPER + ENG_LOWER + UKR_DIGITS + UKR_PUNCTUATION + UKR_SPECIAL
+)
 UKR_ALLOWED_SYMBOLS_SET: set[str] = set(UKR_ALLOWED_SYMBOLS)
 
 # Minimum set of characters a font must support to be considered valid
 UKR_REQUIRED_CHARS: str = UKR_UPPER + UKR_LOWER
+
+
+_global_skipped_letters_set: set[str] = set()
+
+
+def is_text_allowed(text: str) -> bool:
+    """Check if text contains only allowed symbols (Ukrainian, English, digits, punctuation)."""
+    for char in text:
+        if char not in UKR_ALLOWED_SYMBOLS_SET:
+            _global_skipped_letters_set.add(char)
+            return False
+    return True
+
 
 # Ink/pen colors for realistic handwriting (RGB)
 INK_COLORS: list[tuple[int, int, int]] = [

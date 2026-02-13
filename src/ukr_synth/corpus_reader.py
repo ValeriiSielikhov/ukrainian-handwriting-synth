@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 
+from ukr_synth.config import _global_skipped_letters_set, is_text_allowed
 from ukr_synth.logger import get_logger
 
 logger = get_logger(__name__)
@@ -25,8 +26,17 @@ def corpus_reader():
                 data = json.loads(example)["text_plain"].split("\n")
                 for line in data:
                     if line and line.strip():
-                        file_sentences.append(line.strip()[:MAX_LINE_LENGTH])
+                        cleaned_line = line.strip()[:MAX_LINE_LENGTH]
+                        if is_text_allowed(cleaned_line):
+                            file_sentences.append(cleaned_line)
+                        else:
+                            logger.debug(
+                                f"Skipped sentence with disallowed characters: {cleaned_line[:50]}..."
+                            )
         filename = Path(jsonl_file).stem
         sentences[filename] = file_sentences
         logger.info(f"Loaded {len(file_sentences)} sentences from {filename}")
+    logger.info(
+        f"Skipped {len(_global_skipped_letters_set)} letters: {_global_skipped_letters_set}"
+    )
     return sentences
