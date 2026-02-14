@@ -1,4 +1,4 @@
-# Synthetic Handwriting Dataset Generator
+# Ukrainian Handwriting Synth: Synthetic Dataset Generator for OCR/HTR
 
 <div align="center">
 
@@ -11,26 +11,26 @@
 
 </div>
 
-A tool for generating synthetic handwritten text images from digital fonts — designed for training OCR and HTR models.
+A Python tool for generating synthetic handwritten text images from digital fonts. Designed for training Optical Character Recognition (OCR) and Handwritten Text Recognition (HTR) models, specifically optimized for Ukrainian language.
 
-<img src="images/example_1.png" alt="Example output" style="width: 100%; max-width: 100%;">
+<img src="images/example_1.png" alt="Generated synthetic Ukrainian handwritten text sample 1 for OCR training" style="width: 100%; max-width: 100%;">
 
 <table style="width: 100%;">
 <tr>
-<td style="width: 50%;"><img src="images/example_2.png" alt="Example 2" style="width: 100%;"></td>
-<td style="width: 50%;"><img src="images/example_3.png" alt="Example 3" style="width: 100%;"></td>
+<td style="width: 50%;"><img src="images/example_2.png" alt="Generated synthetic Ukrainian handwritten text sample 2 for OCR training" style="width: 100%;"></td>
+<td style="width: 50%;"><img src="images/example_3.png" alt="Generated synthetic Ukrainian handwritten text sample 3 for OCR training" style="width: 100%;"></td>
 </tr>
 <tr>
-<td><img src="images/example_4.png" alt="Example 4" style="width: 100%;"></td>
-<td><img src="images/example_5.png" alt="Example 5" style="width: 100%;"></td>
+<td><img src="images/example_4.png" alt="Generated synthetic Ukrainian handwritten text sample 4 for OCR training" style="width: 100%;"></td>
+<td><img src="images/example_5.png" alt="Generated synthetic Ukrainian handwritten text sample 5 for OCR training" style="width: 100%;"></td>
 </tr>
 <tr>
-<td><img src="images/example_6.png" alt="Example 6" style="width: 100%;"></td>
-<td><img src="images/example_7.png" alt="Example 7" style="width: 100%;"></td>
+<td><img src="images/example_6.png" alt="Generated synthetic Ukrainian handwritten text sample 6 for OCR training" style="width: 100%;"></td>
+<td><img src="images/example_7.png" alt="Generated synthetic Ukrainian handwritten text sample 7 for OCR training" style="width: 100%;"></td>
 </tr>
 <tr>
-<td><img src="images/example_8.png" alt="Example 8" style="width: 100%;"></td>
-<td><img src="images/example_9.png" alt="Example 9" style="width: 100%;"></td>
+<td><img src="images/example_8.png" alt="Generated synthetic Ukrainian handwritten text sample 8 for OCR training" style="width: 100%;"></td>
+<td><img src="images/example_9.png" alt="Generated synthetic Ukrainian handwritten text sample 9 for OCR training" style="width: 100%;"></td>
 </tr>
 </table>
 
