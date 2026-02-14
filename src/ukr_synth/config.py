@@ -61,15 +61,15 @@ BACKGROUNDS_DIR: Path = Path(__file__).resolve().parent.parent / "data" / "backg
 # Default rendering configuration
 DEFAULT_CONFIG: dict = {
     # Font size in px (will be randomized per sample)
-    "font_size_min": 30,
-    "font_size_max": 100,
+    "font_size_min": 40,
+    "font_size_max": 85,
     # Page / canvas color in RGB
     "page_color": (255, 255, 255),
     # Text color in RGB
     "text_color": (0, 0, 0),
     # Margin around cropped text in px
-    "margin": (10, 10),
-    # Skew angle range in radians (-1.0 ≈ -57°, 1.0 ≈ 57°)
-    "skew_min": -1.0,  #
-    "skew_max": 1.0,
+    "margin": (15, 15),
+    # Skew angle range in radians (-0.5 ≈ -28.65°, 0.5 ≈ 28.65°)
+    "skew_min": -0.5,
+    "skew_max": 0.5,
 }

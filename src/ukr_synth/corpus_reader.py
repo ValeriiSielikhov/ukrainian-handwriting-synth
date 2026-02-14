@@ -11,7 +11,7 @@ logger = get_logger(__name__)
 _ROOT = Path(__file__).resolve().parents[2]
 CORPUS_PATH = _ROOT / "src" / "data" / "ukr_text_corpuses"
 JSONL_EXT = "*.jsonl"
-MAX_LINE_LENGTH = 100
+MAX_LINE_LENGTH = 60
 
 
 def corpus_reader():
