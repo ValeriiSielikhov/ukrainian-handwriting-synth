@@ -36,6 +36,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Number of image variants per sentence (default: 1)",
     )
     parser.add_argument(
+        "--num-sentences",
+        "-ns",
+        type=int,
+        default=-1,
+        help="Number of sentences to generate (default: -1, all sentences)",
+    )
+    parser.add_argument(
         "--augment-prob",
         "-a",
         type=float,
@@ -73,7 +80,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = parse_args(argv)
-    sentences = corpus_reader()
+    sentences = corpus_reader(num_sentences=args.num_sentences)
     if not sentences:
         sentences = SENTENCES
     generate_dataset(

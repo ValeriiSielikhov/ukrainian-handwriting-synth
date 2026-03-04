@@ -21,6 +21,7 @@ uv run generate.py \
             --output-dir output \
             --fonts-dir fonts \
             --num-per-sentence 1 \
+            --num-sentences 200000 \
             --augment-prob 0.5 \
             --seed 42 \
             --workers 8 \

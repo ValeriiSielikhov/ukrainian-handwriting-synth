@@ -14,10 +14,11 @@ JSONL_EXT = "*.jsonl"
 MAX_LINE_LENGTH = 60
 
 
-def corpus_reader():
-    sentences = {}
+def corpus_reader(num_sentences: int = -1) -> dict[str, list[str]]:
+    sentences: dict[str, list[str]] = {}
     jsonl_files = glob.glob(os.path.join(CORPUS_PATH, "**", JSONL_EXT), recursive=True)
     logger.info(f"Found {len(jsonl_files)} jsonl files in {CORPUS_PATH}")
+    total_sentences = 0
     for jsonl_file in jsonl_files:
         logger.info(f"Reading {jsonl_file}")
         file_sentences = []
@@ -29,6 +30,12 @@ def corpus_reader():
                         cleaned_line = line.strip()[:MAX_LINE_LENGTH]
                         if is_text_allowed(cleaned_line):
                             file_sentences.append(cleaned_line)
+                            total_sentences += 1
+                            if num_sentences > 0 and total_sentences >= num_sentences:
+                                logger.info(f"Reached {num_sentences} sentences, stopping")
+                                filename = Path(jsonl_file).stem
+                                sentences[filename] = file_sentences
+                                return sentences
                         else:
                             logger.debug(
                                 f"Skipped sentence with disallowed characters: {cleaned_line[:50]}..."
