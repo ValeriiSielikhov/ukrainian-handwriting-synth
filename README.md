@@ -189,6 +189,7 @@ python generate.py \
     --output-dir output \
     --fonts-dir fonts \
     --num-per-sentence 1 \
+    --num-sentences 200000 \
     --augment-prob 0.5 \
     --background-texture-prob 0.5 \
     --image-mode rgb \
@@ -201,6 +202,7 @@ python generate.py \
 | `--output-dir`, `-o` | Root directory for images, .txt references, and labels | `output` |
 | `--fonts-dir`, `-f` | Directory containing `.ttf` / `.otf` font files | `fonts` |
 | `--num-per-sentence`, `-n` | Number of image variants per sentence | `1` |
+| `--num-sentences`, `-ns` | Number of sentences to generate (`-1` for all) | `-1` |
 | `--augment-prob`, `-a` | Probability of each augmentation stage (0 to disable) | `0.5` |
 | `--background-texture-prob` | Probability of applying a texture background per image (textures from `src/data/background`) | `0.5` |
 | `--image-mode` | Save images as `gray` or `rgb` | `rgb` |
@@ -217,7 +219,7 @@ bash run.sh
 
 ## Input Data
 
-- **Text** — supplied by `corpus_reader()`, which reads JSONL files from `src/data/ukr_text_corpuses` (each line: `{"text_plain": "..."}`). Lines are split by newlines; subfolders are named after the source filename. If no JSONL files are found, it falls back to `SENTENCES` from `corpus.py`. You can also pass a list of strings or a dict mapping filename to list of sentences directly to `generate_dataset()`.
+- **Text** — supplied by `corpus_reader()`, which reads JSONL files from `src/data/ukr_text_corpuses` (each line: `{"text_plain": "..."}`). Lines are split by newlines; subfolders are named after the source filename. The `num_sentences` parameter limits how many sentences are retrieved (use `-1` for all). If no JSONL files are found, it falls back to `SENTENCES` from `corpus.py`. You can also pass a list of strings or a dict mapping filename to list of sentences directly to `generate_dataset()`.
 - **Fonts** — `.ttf` or `.otf` files placed in the fonts directory. Each font is automatically validated to ensure it contains proper glyphs for the target language characters — fonts with missing glyphs are excluded.
 - **Background textures** — optional PNG images in `src/data/background` (config default; not overridable via CLI). Textures (kraft.png, white_grid.png, white_lines.png) are applied with `--background-texture-prob` (default 0.5).
 
